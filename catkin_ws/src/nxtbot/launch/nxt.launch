@@ -1,0 +1,4 @@
+<launch>
+<node pkg="nxtbot" type="nxt_pub"  name="nxt_pub" />
+<node pkg="nxtbot" type="convert2angles" name="convert2angles" />
+</launch>
