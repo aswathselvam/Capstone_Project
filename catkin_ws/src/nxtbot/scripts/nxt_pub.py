@@ -6,8 +6,8 @@ import rospy
 from std_msgs.msg import Int16
 
 brick = nxt.locator.find_one_brick(host='00:16:53:0F:9C:D9',name='nxtash', debug=True)
-motorSteer = nxt.Motor(brick, nxt.PORT_B)
-motorDrive = nxt.Motor(brick, nxt.PORT_C)
+motorSteer = nxt.Motor(brick, nxt.PORT_C)
+motorDrive = nxt.Motor(brick, nxt.PORT_B)
 
 def talker():
     pubSteer = rospy.Publisher('odo_steer', Int16, queue_size=3)

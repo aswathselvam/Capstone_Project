@@ -1,4 +1,18 @@
 <launch>
-<node pkg="nxtbot" type="nxt_pub"  name="nxt_pub" />
+<node pkg="nxtbot" type="nxt_pub.py"  name="nxt_pub" />
 <node pkg="nxtbot" type="convert2angles" name="convert2angles" />
+<node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 1  map my_frame  10"/>
+<node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+
+<!--
+<machine
+        name="xux"
+        address="127.0.0.1"
+        env-loader="/home/xux/catkin_ws/devel/setup.bash"
+        default="true"
+        user="xux"
+		password="a"
+/>
+<node machine="xux" pkg="rviz" type="rviz"  name="hello_doubles"/>
+-->
 </launch>
