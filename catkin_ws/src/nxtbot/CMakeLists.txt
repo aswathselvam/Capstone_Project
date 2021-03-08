@@ -7,6 +7,7 @@ project(nxtbot)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -15,10 +16,22 @@ find_package(catkin REQUIRED COMPONENTS
 )
 roslaunch_add_file_check(launch)
 
-include_directories("C:/Users/Aswath/Documents/eigen-3.3.9")
 
 #find_package(Eigen REQUIRED)
+#[[
 
+find_package(OpenCV 4.0 QUIET)
+if(NOT OpenCV_FOUND)
+   find_package(OpenCV 3.0 QUIET)
+   if(NOT OpenCV_FOUND)
+      find_package(OpenCV 2.4.3 QUIET)
+      if(NOT OpenCV_FOUND)
+         message(FATAL_ERROR "OpenCV > 2.4.3 not found.")
+     endif()
+   endif()
+endif()
+
+]]
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -116,6 +129,13 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
+if(Eigen_FOUND)
+	message(STATUS "Eigen Library found")
+else() 
+	 set(EIGEN3_INCLUDE_DIR "C:/Users/Aswath/Documents/eigen-3.3.9")
+	 #include_directories("C:/Users/Aswath/Documents/eigen-3.3.9")
+endif()
+
 ###########
 ## Build ##
 ###########
@@ -123,8 +143,8 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -140,8 +160,8 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
- add_executable(${PROJECT_NAME}_node src/convert2angles.cpp)
- add_executable(convert2angles src/convert2angles.cpp)
+# add_executable(${PROJECT_NAME}_node src/main.cpp)
+ add_executable(main src/main.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -154,10 +174,10 @@ include_directories(
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
- target_link_libraries(${PROJECT_NAME}_node
-   ${catkin_LIBRARIES}
- ) 
- target_link_libraries(convert2angles
+# target_link_libraries(${PROJECT_NAME}_node
+#   ${catkin_LIBRARIES}
+# ) 
+ target_link_libraries(main
    ${catkin_LIBRARIES}
  )
 

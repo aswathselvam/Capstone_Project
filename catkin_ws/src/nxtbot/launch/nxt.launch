@@ -1,10 +1,12 @@
 <launch>
 <node pkg="nxtbot" type="nxt_pub.py"  name="nxt_pub" />
-<node pkg="nxtbot" type="convert2angles" name="convert2angles" />
+<node pkg="nxtbot" type="main" name="main" />
 <node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 1  map my_frame  10"/>
-<node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+  
 
 <!--
+<node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+
 <machine
         name="xux"
         address="127.0.0.1"
