@@ -1,0 +1,17 @@
+<launch>
+  <node pkg="camera_publisher" type="publisher.py" name="camera_publisher_node" />
+  <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+
+  <!--
+
+<machine
+        name="xux"
+        address="127.0.0.1"
+        env-loader="/home/xux/catkin_ws/devel/setup.bash"
+        default="true"
+        user="xux"
+		password="a"
+/>
+<node machine="xux" pkg="rviz" type="rviz"  name="hello_doubles"/>
+-->
+</launch>

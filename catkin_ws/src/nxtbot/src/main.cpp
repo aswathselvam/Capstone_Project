@@ -6,6 +6,18 @@
 #include <tf/transform_datatypes.h>
 #include <Eigen/Dense>
 
+#include <cassert>
+#include <vector>
+#include <stack>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/core.hpp>
+
+using namespace std;
+using namespace cv;
+
 //typedef std_msgs::Int16 odoint;
 
 float driveDist, fullDist, prevDist;
@@ -123,6 +135,14 @@ int main(int argc, char** argv) {
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
 	uint32_t shape_arrow = visualization_msgs::Marker::ARROW;
+	
+
+	string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
+	Mat img = imread(path);
+	Size sz = img.size();
+	cout << "Size of input image: " << img.size() << endl;
+	imshow("Input image", img);
+	waitKey(0);
 
 
 	int count = 0;

@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 roslaunch_add_file_check(launch)
 
+find_package(OpenCV)
 
 #find_package(Eigen REQUIRED)
 #[[
@@ -123,7 +124,7 @@ endif()
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES nxtbot
 #  CATKIN_DEPENDS roscpp rospy std_msgs roslaunch
 #  DEPENDS system_lib
@@ -145,6 +146,7 @@ endif()
 include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -179,6 +181,7 @@ include_directories(
 # ) 
  target_link_libraries(main
    ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
  )
 
 
