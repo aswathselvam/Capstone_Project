@@ -137,7 +137,8 @@ int main(int argc, char** argv) {
 	uint32_t shape_arrow = visualization_msgs::Marker::ARROW;
 	
 
-	string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
+	//string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
+	string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
 	Mat img = imread(path);
 	Size sz = img.size();
 	cout << "Size of input image: " << img.size() << endl;
@@ -207,7 +208,7 @@ int main(int argc, char** argv) {
 		
 		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta);
 
-		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, delta);
+		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta+delta);
 
 		
 		// Set the scale of the marker -- 1x1x1 here means 1m on a side

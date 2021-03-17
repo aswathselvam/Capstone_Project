@@ -2,7 +2,10 @@
 <node pkg="nxtbot" type="nxt_pub.py"  name="nxt_pub" />
 <node pkg="nxtbot" type="main" name="main" />
 <node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 1  map my_frame  10"/>
-  
+
+<include file="$(find nxtbot)/launch/utils.launch" />
+
+
 
 <!--
 <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />

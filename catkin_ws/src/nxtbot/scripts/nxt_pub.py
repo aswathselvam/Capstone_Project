@@ -5,7 +5,9 @@ import time
 import rospy
 from std_msgs.msg import Int16
 
-brick = nxt.locator.find_one_brick(host='00:16:53:0F:9C:D9',name='nxtash', debug=True)
+#brick = nxt.locator.find_one_brick(host='00:16:53:0F:9C:D9',name='nxtash', debug=True)
+brick = nxt.locator.find_one_brick(debug=True)
+
 motorSteer = nxt.Motor(brick, nxt.PORT_C)
 motorDrive = nxt.Motor(brick, nxt.PORT_B)
 

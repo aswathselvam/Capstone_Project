@@ -18,7 +18,8 @@ roslaunch_add_file_check(launch)
 
 find_package(OpenCV)
 
-#find_package(Eigen REQUIRED)
+find_package(Eigen3 REQUIRED)
+
 #[[
 
 find_package(OpenCV 4.0 QUIET)
@@ -124,16 +125,20 @@ endif()
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  INCLUDE_DIRS include
+#  INCLUDE_DIRS include
 #  LIBRARIES nxtbot
 #  CATKIN_DEPENDS roscpp rospy std_msgs roslaunch
 #  DEPENDS system_lib
 )
 
+include_directories(${EIGEN3_INCLUDE_DIR})
+
 if(Eigen_FOUND)
 	message(STATUS "Eigen Library found")
 else() 
-	 set(EIGEN3_INCLUDE_DIR "C:/Users/Aswath/Documents/eigen-3.3.9")
+	 #Doesn't work: set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_INCLUDE_DIR}" )
+	 #set(EIGEN3_INCLUDE_DIR "C:/Users/Aswath/Documents/eigen-3.3.9")
+	 #OR
 	 #include_directories("C:/Users/Aswath/Documents/eigen-3.3.9")
 endif()
 
@@ -182,6 +187,7 @@ include_directories(
  target_link_libraries(main
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
+
  )
 
 

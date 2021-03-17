@@ -1,8 +1,10 @@
 <launch>
-  <node pkg="camera_publisher" type="publisher.py" name="camera_publisher_node" />
+<include file="$(find camera_publisher)/launch/publisher.launch" />
+
   <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
 
   <!--
+  <node pkg="camera_publisher" type="publisher.py" name="camera_publisher_node" />
 
 <machine
         name="xux"
