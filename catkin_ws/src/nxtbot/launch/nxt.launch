@@ -5,7 +5,7 @@
 
 <include file="$(find nxtbot)/launch/utils.launch" />
 
-
+<include file="$(find orb_slam2_ros)/ros/launch/orb_slam2_g5.launch" />
 
 <!--
 <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
