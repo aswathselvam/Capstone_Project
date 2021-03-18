@@ -1,3 +1,22 @@
+In Ubuntu:
+Launch the system:
+```
+$ roslaunch nxtbot nxt.launch
+```
+For Teleop control:
+```
+$ rosrun teleop_twist_keyboard teleop_twist_keyboard.py
+```
+Set angular speed and linear speed to 40 and 50 respectively. \
+'u'/'w' for moving forward/backward.\
+'j'/'l' for steering left/right. \
+PORT B is drive motor, PORT C is steer motor. 
+For debug messages:
+```
+$ rostopic echo rosout
+```
+
+\
 In ROS Noetic VS 19 command prompt:
 ````
 > cd catkin_ws

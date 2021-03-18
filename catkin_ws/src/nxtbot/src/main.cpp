@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
 
-	ros::Publisher chatter_pub = n.advertise<std_msgs::Int16>("chatter", 1000);
+	//ros::Publisher chatter_pub = n.advertise<std_msgs::Int16>("chatter", 1000);
 
 	ros::Rate loop_rate(50);
 
@@ -142,8 +142,8 @@ int main(int argc, char** argv) {
 	Mat img = imread(path);
 	Size sz = img.size();
 	cout << "Size of input image: " << img.size() << endl;
-	imshow("Input image", img);
-	waitKey(0);
+	//imshow("Input image", img);
+	//#waitKey(0);
 
 
 	int count = 0;
@@ -200,8 +200,8 @@ int main(int argc, char** argv) {
 		marker_cube.pose.position.y = g(1,0)/10;
 		marker_cube.pose.position.z = 0;
 
-		marker_arrow.pose.position.x = g(0, 0)/10+1;
-		marker_arrow.pose.position.y = g(1, 0)/10;
+		marker_arrow.pose.position.x = g(0, 0)/10+cos(theta)*1;
+		marker_arrow.pose.position.y = g(1, 0)/10+sin(theta)*1;
 		marker_arrow.pose.position.z = 0;
 		
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
