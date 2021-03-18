@@ -6,6 +6,15 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /Marker1
+        - /Marker1/Namespaces1
+        - /Marker2
+        - /Marker2/Namespaces1
+        - /Pose1
+        - /PoseWithCovariance1
+        - /PoseWithCovariance1/Covariance1
+        - /Axes1
+        - /Axes1/Status1
       Splitter Ratio: 0.5
     Tree Height: 426
   - Class: rviz/Selection
@@ -26,7 +35,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Image
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -57,19 +66,19 @@ Visualization Manager:
       Marker Topic: /visualization_marker_cube
       Name: Marker
       Namespaces:
-        {}
-      Queue Size: 100
+        marker_cube: true
+      Queue Size: 2
       Value: true
     - Class: rviz/Marker
       Enabled: true
       Marker Topic: /visualization_marker_arrow
       Name: Marker
       Namespaces:
-        {}
-      Queue Size: 100
+        marker_arrow: true
+      Queue Size: 2
       Value: true
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /orb_slam2_mono/debug_image
       Max Value: 1
       Median window: 5
@@ -79,7 +88,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -109,7 +118,7 @@ Visualization Manager:
       Use rainbow: true
       Value: true
     - Class: rviz/Image
-      Enabled: false
+      Enabled: true
       Image Topic: /camera/image_raw
       Max Value: 1
       Median window: 5
@@ -119,7 +128,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
     - Alpha: 1
       Axes Length: 1
       Axes Radius: 0.10000000149011612
@@ -135,6 +144,45 @@ Visualization Manager:
       Shape: Arrow
       Topic: /orb_slam2_mono/pose
       Unreliable: false
+      Value: true
+    - Alpha: 1
+      Axes Length: 1
+      Axes Radius: 0.10000000149011612
+      Class: rviz/PoseWithCovariance
+      Color: 13; 233; 233
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: true
+        Position:
+          Alpha: 0.30000001192092896
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: PoseWithCovariance
+      Queue Size: 2
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Arrow
+      Topic: /pose_with_covar
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Class: rviz/Axes
+      Enabled: true
+      Length: 1
+      Name: Axes
+      Radius: 0.10000000149011612
+      Reference Frame: <Fixed Frame>
       Value: true
   Enabled: true
   Global Options:
@@ -164,7 +212,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 3.276714563369751
+      Distance: 2.953845262527466
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -180,9 +228,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.785398006439209
+      Pitch: 0.7503989934921265
       Target Frame: <Fixed Frame>
-      Yaw: 0.785398006439209
+      Yaw: 4.903575420379639
     Saved: ~
 Window Geometry:
   Displays:

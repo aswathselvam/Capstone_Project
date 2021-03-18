@@ -5,6 +5,8 @@
 #include "visualization_msgs/Marker.h"
 #include <tf/transform_datatypes.h>
 #include <Eigen/Dense>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+
 
 #include <cassert>
 #include <vector>
@@ -32,23 +34,26 @@ float TICKS			=360;
 int L = 10;
 
 
-Eigen::MatrixXd dx(3, 1);
-Eigen::MatrixXd Xt_1(3, 1);
-Eigen::MatrixXd g(3, 1);
-Eigen::MatrixXd Gt(3, 3);
-Eigen::MatrixXd Vt(3, 2);
-Eigen::MatrixXd Et(3, 3);
-Eigen::MatrixXd Et_1(3, 3);
-Eigen::MatrixXd E_control(2, 2);
-Eigen::MatrixXd Rt(3,3);
+Eigen::MatrixXd dx(3, 1);			//Displacement of wheels 
+Eigen::MatrixXd Xt_1(3, 1);			//Previous state x,y,theta
+Eigen::MatrixXd g(3, 1);			//current state x,y,theta
+Eigen::MatrixXd Gt(3, 3);			//Jacobian of G, dg/dState
+Eigen::MatrixXd Vt(3, 2);			//Jacobian dg/dControl
+Eigen::MatrixXd Et(3, 3);			//Covariance matrix
+Eigen::MatrixXd Et_1(3, 3);			//Previous Covariance matrix
+Eigen::MatrixXd E_control(2, 2);	//Covariance matrix for actuator noise 
+Eigen::MatrixXd Rt(3,3);			//Covariance matrix for sensor noise
 
-Eigen::MatrixXd K(3, 3);
-Eigen::MatrixXd H(3, 3);
+Eigen::MatrixXd K(3, 3);			//Kalman gain
+Eigen::MatrixXd H(3, 1);			//Observation or true state matrix
 
 
 //void publish_loc_marker();
 void refresh_Xt(Eigen::MatrixXd* Xt);
 void refresh_Gt(Eigen::MatrixXd* Gt);
+
+
+geometry_msgs::PoseWithCovarianceStamped pose;
 
 
 
@@ -120,6 +125,7 @@ int main(int argc, char** argv) {
 	E_control << SIGMA_DIRVEDIST, 0,
 		0, SIGMA_DELTA;
 
+	std::string fixed_frame = "my_frame";
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
 	ros::NodeHandle n;
@@ -129,6 +135,9 @@ int main(int argc, char** argv) {
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
 
 	//ros::Publisher chatter_pub = n.advertise<std_msgs::Int16>("chatter", 1000);
+	
+	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("/pose_with_covar", 1);
+    pose.header.frame_id = fixed_frame;
 
 	ros::Rate loop_rate(50);
 
@@ -136,6 +145,42 @@ int main(int argc, char** argv) {
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
 	uint32_t shape_arrow = visualization_msgs::Marker::ARROW;
 	
+	visualization_msgs::Marker marker_cube;
+	visualization_msgs::Marker marker_arrow;
+	marker_cube.lifetime = ros::Duration();
+	marker_arrow.lifetime = ros::Duration();
+	marker_arrow.header.frame_id = fixed_frame;
+	marker_cube.header.frame_id = fixed_frame;
+	marker_cube.lifetime = ros::Duration();
+	marker_arrow.lifetime = ros::Duration();
+
+	// Set the namespace and id for this marker.  This serves to create a unique ID
+	// Any marker sent with the same namespace and id will overwrite the old one
+	marker_cube.ns = "marker_cube";
+	marker_cube.id = 0;
+
+	marker_arrow.ns = "marker_arrow";
+	marker_arrow.id = 0;
+
+	// Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
+	marker_cube.type = shape_cube;
+	marker_arrow.type = shape_arrow;
+
+	// Set the marker action.  Options are ADD and DELETE
+	marker_cube.action = visualization_msgs::Marker::ADD;
+	marker_arrow.action = visualization_msgs::Marker::ADD;
+
+	// Set the color -- be sure to set alpha to something non-zero!
+	marker_cube.color.r = 1.0f;
+	marker_cube.color.g = 0.0f;
+	marker_cube.color.b = 0.0f;
+	marker_cube.color.a = 0.5;
+	
+	// Set the color -- be sure to set alpha to something non-zero!
+	marker_arrow.color.r = 0.0f;
+	marker_arrow.color.g = 1.0f;
+	marker_arrow.color.b = 0.0f;
+	marker_arrow.color.a = 0.5;
 
 	//string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
 	string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
@@ -164,36 +209,10 @@ int main(int argc, char** argv) {
 		*/
 
 
-		visualization_msgs::Marker marker_cube;
-		visualization_msgs::Marker marker_arrow;
-
 		// Set the frame ID and timestamp.  See the TF tutorials for information on these.
 
-		marker_arrow.header.frame_id = "my_frame";
 		marker_arrow.header.stamp = ros::Time::now();
-
-		marker_cube.header.frame_id = "my_frame";
 		marker_cube.header.stamp = ros::Time::now();
-
-
-		// Set the namespace and id for this marker.  This serves to create a unique ID
-		// Any marker sent with the same namespace and id will overwrite the old one
-		marker_cube.ns = "marker_cube";
-		marker_cube.id = 0;
-
-		marker_arrow.ns = "marker_arrow";
-		marker_arrow.id = 0;
-
-
-		// Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
-		marker_cube.type = shape_cube;
-
-		marker_arrow.type = shape_arrow;
-
-		// Set the marker action.  Options are ADD and DELETE
-		marker_cube.action = visualization_msgs::Marker::ADD;
-
-		marker_arrow.action = visualization_msgs::Marker::ADD;
 
 		// Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
 		marker_cube.pose.position.x = g(0,0)/10;
@@ -207,41 +226,43 @@ int main(int argc, char** argv) {
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
 		
 		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta);
-
 		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta+delta);
 
-		
 		// Set the scale of the marker -- 1x1x1 here means 1m on a side
 		marker_cube.scale.x = 1.0;
 		marker_cube.scale.y = 1.0;
 		marker_cube.scale.z = 1.0;
-
-		// Set the color -- be sure to set alpha to something non-zero!
-		marker_cube.color.r = 1.0f;
-		marker_cube.color.g = 0.0f;
-		marker_cube.color.b = 0.0f;
-		marker_cube.color.a = 1.0;
 
 		// Set the scale of the marker -- 1x1x1 here means 1m on a side
 		marker_arrow.scale.x = 1.0;
 		marker_arrow.scale.y = 1.0;
 		marker_arrow.scale.z = 1.0;
 
-		// Set the color -- be sure to set alpha to something non-zero!
-		marker_arrow.color.r = 0.0f;
-		marker_arrow.color.g = 1.0f;
-		marker_arrow.color.b = 0.0f;
-		marker_arrow.color.a = 1.0;
-
-		
-		marker_cube.lifetime = ros::Duration();
-		marker_arrow.lifetime = ros::Duration();
-
 
 		// Publish the marker
 		marker_pub.publish(marker_cube);
-
 		marker_arrow_pub.publish(marker_arrow);
+
+
+		pose.header.stamp = ros::Time::now();
+
+		// set x,y coord
+		pose.pose.pose.position.x = x;
+		pose.pose.pose.position.y = y;
+		pose.pose.pose.position.z = 0.0;
+
+		// set theta
+		tf::Quaternion quat;
+		quat.setRPY(0.0, 0.0, 0.0);
+		tf::quaternionTFToMsg(quat, pose.pose.pose.orientation);
+		pose.pose.covariance[6*0+0] = 0.5 * 0.5;
+		pose.pose.covariance[6*1+1] = 0.5 * 0.5;
+		pose.pose.covariance[6*5+5] = M_PI/12.0 * M_PI/12.0;
+
+		// publish
+		ROS_INFO("x: %f, y: %f, z: 0.0, theta: %f",x,y,theta);
+		pub_pose.publish(pose);
+
 
 		/*
 		// Cycle between different shapes
