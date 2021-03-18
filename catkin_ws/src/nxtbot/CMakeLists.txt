@@ -13,7 +13,12 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   roslaunch
+  octomap_ros
+  octomap_msgs
 )
+
+find_package(octomap REQUIRED)
+
 roslaunch_add_file_check(launch)
 
 find_package(OpenCV)
@@ -152,6 +157,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
+  ${OCTOMAP_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -169,6 +175,7 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/main.cpp)
  add_executable(main src/main.cpp)
+ add_executable(octo_trial src/octomap_trial.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -187,9 +194,13 @@ include_directories(
  target_link_libraries(main
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
-
  )
 
+ target_link_libraries(octo_trial
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+   ${OCTOMAP_LIBRARIES}
+ )
 
 #############
 ## Install ##
