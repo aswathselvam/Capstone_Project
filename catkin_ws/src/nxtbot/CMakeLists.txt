@@ -15,9 +15,16 @@ find_package(catkin REQUIRED COMPONENTS
   roslaunch
   octomap_ros
   octomap_msgs
+#  core_planning_utils
+#  core_planning_state_space
+#  core_map_representation_interface
+  pcl_conversions
+  pcl_ros
 )
 
 find_package(octomap REQUIRED)
+find_package(ompl REQUIRED)
+find_package(fcl REQUIRED)
 
 roslaunch_add_file_check(launch)
 
@@ -136,8 +143,6 @@ catkin_package(
 #  DEPENDS system_lib
 )
 
-include_directories(${EIGEN3_INCLUDE_DIR})
-
 if(Eigen_FOUND)
 	message(STATUS "Eigen Library found")
 else() 
@@ -158,6 +163,9 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
   ${OCTOMAP_INCLUDE_DIRS}
+  ${OMPL_INCLUDE_DIRS}
+  ${fcl_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -175,9 +183,10 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/main.cpp)
  add_executable(main src/main.cpp)
- add_executable(octo_trial src/octomap_trial.cpp)
+ add_executable(octomap_trial src/octomap_trial.cpp)
  add_executable(occupancy_image src/occupancy_image.cpp)
  add_executable(image_to_grid src/image_to_grid.cpp)
+ add_executable(path_planning src/path_planning.cpp)
 
  ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -198,7 +207,7 @@ include_directories(
    ${OpenCV_LIBS}
  )
 
- target_link_libraries(octo_trial
+ target_link_libraries(octomap_trial
    ${catkin_LIBRARIES}
    ${OCTOMAP_LIBRARIES}
  )
@@ -212,8 +221,17 @@ include_directories(
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
    ${OCTOMAP_LIBRARIES}
+   ${OMPL_LIBRARIES}
  )
 
+ target_link_libraries(path_planning
+ ${catkin_LIBRARIES}
+ ${OCTOMAP_LIBRARIES}
+ ${OMPL_LIBRARIES}
+ ${PCL_LIBRARIES}
+ ${fcl_LIBRARIES}
+
+)
 #############
 ## Install ##
 #############

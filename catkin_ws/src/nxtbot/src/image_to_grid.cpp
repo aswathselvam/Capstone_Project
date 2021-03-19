@@ -26,10 +26,16 @@
 #include <stack>
 #include <cstdlib>
 
+#include <ompl/base/ScopedState.h>
+#include <ompl/geometric/SimpleSetup.h>
+#include <ompl/base/spaces/DubinsStateSpace.h>
+#include <ompl/base/spaces/ReedsSheppStateSpace.h>
 
 using namespace std;
 using namespace cv;
 using namespace octomap;
+namespace ob = ompl::base;
+namespace og = ompl::geometric;
 
 Point pt(-1, -1);
 int threshold = 200;
@@ -207,7 +213,7 @@ int main(int argc, char **argv) {
 
     ros::init(argc, argv, "octomap_trial");
     ros::NodeHandle n;
-    ros::Rate loop_rate(0.5);
+    ros::Rate loop_rate(1);
     ros::Publisher pub_octomap = n.advertise<octomap_msgs::Octomap>("octomap_loaded", 1);
     octomap_msgs::Octomap octomap;
         cout<<"Conversion successfull";

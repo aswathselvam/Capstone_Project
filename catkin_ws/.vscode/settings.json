@@ -4,5 +4,8 @@
         "/opt/ros/noetic/lib/python3/dist-packages"
     ],
     "cmake.buildDirectory": "${workspaceRoot}/debug",
-    "cmake.sourceDirectory": "${workspaceRoot}/src"
+    "cmake.sourceDirectory": "${workspaceRoot}/src",
+    "files.associations": {
+        "algorithm": "cpp"
+    }
 }
