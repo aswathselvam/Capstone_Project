@@ -176,6 +176,7 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/main.cpp)
  add_executable(main src/main.cpp)
  add_executable(octo_trial src/octomap_trial.cpp)
+ add_executable(occupancy_image src/occupancy_image.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -201,6 +202,13 @@ include_directories(
    ${OpenCV_LIBS}
    ${OCTOMAP_LIBRARIES}
  )
+
+ target_link_libraries(occupancy_image
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+   ${OCTOMAP_LIBRARIES}
+ )
+
 
 #############
 ## Install ##
