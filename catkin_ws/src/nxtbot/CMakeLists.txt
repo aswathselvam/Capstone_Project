@@ -177,8 +177,9 @@ include_directories(
  add_executable(main src/main.cpp)
  add_executable(octo_trial src/octomap_trial.cpp)
  add_executable(occupancy_image src/occupancy_image.cpp)
+ add_executable(image_to_grid src/image_to_grid.cpp)
 
-## Rename C++ executable without prefix
+ ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
@@ -199,16 +200,19 @@ include_directories(
 
  target_link_libraries(octo_trial
    ${catkin_LIBRARIES}
-   ${OpenCV_LIBS}
    ${OCTOMAP_LIBRARIES}
  )
 
  target_link_libraries(occupancy_image
    ${catkin_LIBRARIES}
    ${OpenCV_LIBS}
-   ${OCTOMAP_LIBRARIES}
  )
 
+ target_link_libraries(image_to_grid
+   ${catkin_LIBRARIES}
+   ${OpenCV_LIBS}
+   ${OCTOMAP_LIBRARIES}
+ )
 
 #############
 ## Install ##

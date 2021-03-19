@@ -1,0 +1,8 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/aswath/slam_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "cmake.buildDirectory": "${workspaceRoot}/debug",
+    "cmake.sourceDirectory": "${workspaceRoot}/src"
+}
