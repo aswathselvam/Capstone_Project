@@ -6,6 +6,7 @@
     "cmake.buildDirectory": "${workspaceRoot}/debug",
     "cmake.sourceDirectory": "${workspaceRoot}/src",
     "files.associations": {
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "functional": "cpp"
     }
 }
