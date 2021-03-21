@@ -33,8 +33,8 @@ def moveRobot(msg):
     wheel_left.set_speed(v_l)
     wheel_right.set_speed(v_r)
     '''
-    motorDrive.weak_turn(power=int(msg.linear.x),tacho_units=25)
-    motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
+    #motorDrive.weak_turn(power=int(msg.linear.x),tacho_units=25)
+    #motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
     
         
 
@@ -46,7 +46,7 @@ def talker():
     rospy.Subscriber("cmd_vel", Twist, moveRobot,queue_size=1)
     
     rospy.init_node('nxt_controller', anonymous=True)
-    rate = rospy.Rate(20) # 80hz
+    rate = rospy.Rate(1) # 80hz
     while not rospy.is_shutdown():
         pubSteer.publish(motorSteer.get_tacho().block_tacho_count)
         pubDrive.publish(motorDrive.get_tacho().block_tacho_count)

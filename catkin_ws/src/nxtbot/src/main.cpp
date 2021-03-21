@@ -1,11 +1,14 @@
 #include <iostream>
 #include <cmath>
-#include "ros/ros.h"
-#include "std_msgs/Int16.h"
-#include "visualization_msgs/Marker.h"
+#include <ros/ros.h>
+#include <std_msgs/Int16.h>
+#include <visualization_msgs/Marker.h>
 #include <tf/transform_datatypes.h>
 #include <Eigen/Dense>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <tf/transform_listener.h>
+#include "message_filters/subscriber.h"
+#include <tf/message_filter.h>
 
 
 #include <cassert>
@@ -31,7 +34,7 @@ double RAD_PER_TICK;
 float RAD_STEER_PER_TICK;
 float RADIUS		=3;
 float TICKS			=360;
-int L = 10;
+int L 				= 10;
 
 
 Eigen::MatrixXd dx(3, 1);			//Displacement of wheels 
@@ -39,24 +42,31 @@ Eigen::MatrixXd Xt_1(3, 1);			//Previous state x,y,theta
 Eigen::MatrixXd g(3, 1);			//current state x,y,theta
 Eigen::MatrixXd Gt(3, 3);			//Jacobian of G, dg/dState
 Eigen::MatrixXd Vt(3, 2);			//Jacobian dg/dControl
+Eigen::MatrixXd Et_pred(3, 3);			//Covariance matrix
 Eigen::MatrixXd Et(3, 3);			//Covariance matrix
 Eigen::MatrixXd Et_1(3, 3);			//Previous Covariance matrix
 Eigen::MatrixXd E_control(2, 2);	//Covariance matrix for actuator noise 
 Eigen::MatrixXd Rt(3,3);			//Covariance matrix for sensor noise
 
-Eigen::MatrixXd K(3, 3);			//Kalman gain
-Eigen::MatrixXd H(3, 1);			//Observation or true state matrix
-
+Eigen::MatrixXd Kt(3, 3);			//Kalman gain
+Eigen::MatrixXd Ht(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd Q(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd Xt(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd Zt(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd I(3, 3);			//Observation or true state matrix
 
 //void publish_loc_marker();
 void refresh_Xt(Eigen::MatrixXd* Xt);
 void refresh_Gt(Eigen::MatrixXd* Gt);
+void refresh_Vt(Eigen::MatrixXd* Vt);
 
 
 geometry_msgs::PoseWithCovarianceStamped pose;
-
-
-
+/*
+message_filters::Subscriber<geometry_msgs::PointStamped> point_sub_;
+tf::TransformListener tf_;
+tf::MessageFilter<geometry_msgs::PointStamped> * tf_filter_;
+*/
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -75,13 +85,54 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	theta = g(2, 0);
 	refresh_Xt(&dx);
 	refresh_Gt(&Gt);
-	g = Xt_1 + dx;
-	Rt = Vt * E_control * Vt.transpose();
-	Et = Gt * Et_1 * Gt.transpose() + Rt;
-	Et_1 = Et;
-	Xt_1 = g;
+	refresh_Gt(&Vt);
 
+	g = Xt_1 + dx;
+		
+	cout<<Et<<endl<<endl;
+	Rt = Vt * E_control * Vt.transpose();
+	//cout<<"Rt "<<endl<<Rt<<endl<<endl;
+	//Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
+	Et = Gt * Et_1 * Gt.transpose() + Rt;
+	//if (Et(1,1)>20){
+	//	Et_1<<20,10,10;
+	//	10,20,10,
+	//	10,10,20;
+	//}else{
+	Et_1 = Et;
+	//}
+	Xt_1 = g;
+	
 }
+
+void slamCamCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
+	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
+
+	Xt=g + Kt*(Zt-g);
+	Et=(I-Kt*Ht)*Et;
+	Xt_1=Xt;
+	Et_1=Et;
+}
+
+void slamBaseLinkCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
+	
+}
+/*
+//  Callback to register with tf::MessageFilter to be called when transforms are available
+void msgCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
+	geometry_msgs::PointStamped point_out;
+	try {
+		tf_.transformPoint(target_frame_, *point_ptr, point_out);
+		
+		printf("point of turtle 3 in frame of turtle 1 Position(x:%f y:%f z:%f)\n", 
+				point_out.point.x,
+				point_out.point.y,
+				point_out.point.z);
+	}catch (tf::TransformException &ex) {
+		printf ("Failure %s\n", ex.what()); //Print exception which was caught
+	}
+}
+*/
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
 	*dx<< driveDist*cos(delta+theta),
@@ -118,28 +169,47 @@ int main(int argc, char** argv) {
 		0, 
 		0;
 
-	const float SIGMA_DIRVEDIST=1;
-	const float SIGMA_DELTA=1;
+	const float SIGMA_DIRVEDIST=0.001;
+	const float SIGMA_DELTA=0.001;
 
 
 	E_control << SIGMA_DIRVEDIST, 0,
 		0, SIGMA_DELTA;
 
+	Et_1<<0,0,0,
+	0,0,0,
+	0,0,0;
+	
+	Et<<0,0,0,
+	0,0,0,
+	0,0,0;
+
+	I<<1,0,0,
+	0,1,0,
+	0,0,1;
+
 	std::string fixed_frame = "my_frame";
+	//std::string target_frame_ = "my_frame";
+
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
 	ros::NodeHandle n;
 	ros::Subscriber subOdo = n.subscribe("odo_steer", 3, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("odo_drive", 3, driveCallback);
+	//ros::Subscriber subSlamCamTf = n.subscribe("orb_slam2_ros/camera_link",2,slamCamCallback);
+	//ros::Subscriber subSlamBaseLink = n.subscribe("orb_slam2_ros/base_link",1,slamBaseLinkCallback); 
+	//tf_filter_ = new tf::MessageFilter<geometry_msgs::PointStamped>(subSlamCamTf, tf_, target_frame_, 10);
+    //tf_filter_->registerCallback( boost::bind(&PoseDrawer::msgCallback, this, _1) );
+
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
 
 	//ros::Publisher chatter_pub = n.advertise<std_msgs::Int16>("chatter", 1000);
 	
-	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("/pose_with_covar", 1);
+	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
     pose.header.frame_id = fixed_frame;
 
-	ros::Rate loop_rate(50);
+	ros::Rate loop_rate(5);
 
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
@@ -215,12 +285,12 @@ int main(int argc, char** argv) {
 		marker_cube.header.stamp = ros::Time::now();
 
 		// Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
-		marker_cube.pose.position.x = g(0,0)/10;
-		marker_cube.pose.position.y = g(1,0)/10;
+		marker_cube.pose.position.x = g(0,0)/100;
+		marker_cube.pose.position.y = g(1,0)/100;
 		marker_cube.pose.position.z = 0;
 
-		marker_arrow.pose.position.x = g(0, 0)/10+cos(theta)*1;
-		marker_arrow.pose.position.y = g(1, 0)/10+sin(theta)*1;
+		marker_arrow.pose.position.x = g(0, 0)/100+cos(theta)*1;
+		marker_arrow.pose.position.y = g(1, 0)/100+sin(theta)*1;
 		marker_arrow.pose.position.z = 0;
 		
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
@@ -247,20 +317,20 @@ int main(int argc, char** argv) {
 		pose.header.stamp = ros::Time::now();
 
 		// set x,y coord
-		pose.pose.pose.position.x = x;
-		pose.pose.pose.position.y = y;
+		pose.pose.pose.position.x = g(0,0)/100;
+		pose.pose.pose.position.y = g(1,0)/100;
 		pose.pose.pose.position.z = 0.0;
 
 		// set theta
 		tf::Quaternion quat;
-		quat.setRPY(0.0, 0.0, 0.0);
+		quat.setRPY(0.0, 0.0, g(2,0));
 		tf::quaternionTFToMsg(quat, pose.pose.pose.orientation);
-		pose.pose.covariance[6*0+0] = 0.5 * 0.5;
-		pose.pose.covariance[6*1+1] = 0.5 * 0.5;
-		pose.pose.covariance[6*5+5] = M_PI/12.0 * M_PI/12.0;
+		pose.pose.covariance[6*0+0] = Et(1,1)/100;
+		pose.pose.covariance[6*1+1] = Et(0,0)/100;
+		pose.pose.covariance[6*5+5] = Et(2,2);
 
 		// publish
-		ROS_INFO("x: %f, y: %f, z: 0.0, theta: %f",x,y,theta);
+		//ROS_INFO("x: %f, y: %f, z: 0.0, theta: %f",x,y,Et(1,1));
 		pub_pose.publish(pose);
 
 

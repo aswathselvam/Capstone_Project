@@ -7,6 +7,7 @@
     "cmake.sourceDirectory": "${workspaceRoot}/src",
     "files.associations": {
         "algorithm": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "iostream": "cpp"
     }
 }
