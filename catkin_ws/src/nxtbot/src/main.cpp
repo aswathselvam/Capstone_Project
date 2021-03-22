@@ -73,6 +73,7 @@ void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	}
 	delta = (RAD_STEER_PER_TICK) * -(steerMiddle - msg->data);
 }
+
 void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 
 	fullDist = 2.0 * RADIUS * (RAD_PER_TICK) * (msg->data);
@@ -105,7 +106,15 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 }
 
 void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
-	double x= msg->pose.position.x;
+	ht(0,0)= msg->pose.position.x;
+	ht(1,0)= msg->pose.position.y;
+	//double z= msg->pose.position.z;
+	tf::Quaternion q(msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z, msg->pose.orientation.w);
+	tf::Matrix3x3 m(q);
+	double roll, pitch, yaw;
+	m.getRPY(roll, pitch, yaw);
+	ht(2,0)= yaw;
+
     std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
 	Xt=g + Kt*(ht-g);
