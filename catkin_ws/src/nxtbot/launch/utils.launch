@@ -1,7 +1,13 @@
 <launch>
-<include file="$(find camera_publisher)/launch/publisher.launch" />
+  <include file="$(find camera_publisher)/launch/publisher.launch" />
+
+  <node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 1  map my_frame  10"/>
+  <!-- rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10 -->
 
   <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+  
+  <include file="$(find orb_slam2_ros)/ros/launch/orb_slam2_g5.launch" />
+  <!-- roslaunch orb_slam2_ros orb_slam2_g5.launch -->
 
   <!--
   <node pkg="camera_publisher" type="publisher.py" name="camera_publisher_node" />

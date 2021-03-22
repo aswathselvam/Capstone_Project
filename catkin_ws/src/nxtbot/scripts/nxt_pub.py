@@ -48,7 +48,7 @@ def talker():
     rospy.init_node('nxt_controller', anonymous=True)
     rate = rospy.Rate(1) # 80hz
     while not rospy.is_shutdown():
-        pubSteer.publish(motorSteer.get_tacho().block_tacho_count)
+        pubSteer.publish(-1*motorSteer.get_tacho().block_tacho_count)
         pubDrive.publish(motorDrive.get_tacho().block_tacho_count)
         rate.sleep()
 

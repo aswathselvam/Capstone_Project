@@ -187,6 +187,7 @@ include_directories(
  add_executable(occupancy_image src/occupancy_image.cpp)
  add_executable(image_to_grid src/image_to_grid.cpp)
  add_executable(path_planning src/path_planning.cpp)
+ add_executable(tf_listener src/tf_listener.cpp)
 
  ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -230,7 +231,10 @@ include_directories(
  ${OMPL_LIBRARIES}
  ${PCL_LIBRARIES}
  ${fcl_LIBRARIES}
+)
 
+target_link_libraries(tf_listener 
+${catkin_LIBRARIES}
 )
 #############
 ## Install ##

@@ -7,8 +7,10 @@
 #include <Eigen/Dense>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf/transform_listener.h>
-#include "message_filters/subscriber.h"
+#include <message_filters/subscriber.h>
 #include <tf/message_filter.h>
+#include <geometry_msgs/PoseStamped.h>
+
 
 
 #include <cassert>
@@ -48,8 +50,10 @@ Eigen::MatrixXd Et_1(3, 3);			//Previous Covariance matrix
 Eigen::MatrixXd E_control(2, 2);	//Covariance matrix for actuator noise 
 Eigen::MatrixXd Rt(3,3);			//Covariance matrix for sensor noise
 
-Eigen::MatrixXd Kt(3, 3);			//Kalman gain
-Eigen::MatrixXd Ht(3, 1);			//Observation or true state matrix
+//float Kt =0;
+Eigen::MatrixXd Kt(1, 1);			//Kalman gain
+Eigen::MatrixXd ht(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd Ht(3, 3);			//Observation or true state matrix
 Eigen::MatrixXd Q(3, 1);			//Observation or true state matrix
 Eigen::MatrixXd Xt(3, 1);			//Observation or true state matrix
 Eigen::MatrixXd Zt(3, 1);			//Observation or true state matrix
@@ -62,11 +66,6 @@ void refresh_Vt(Eigen::MatrixXd* Vt);
 
 
 geometry_msgs::PoseWithCovarianceStamped pose;
-/*
-message_filters::Subscriber<geometry_msgs::PointStamped> point_sub_;
-tf::TransformListener tf_;
-tf::MessageFilter<geometry_msgs::PointStamped> * tf_filter_;
-*/
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -93,46 +92,27 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	Rt = Vt * E_control * Vt.transpose();
 	//cout<<"Rt "<<endl<<Rt<<endl<<endl;
 	//Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
-	Et = Gt * Et_1 * Gt.transpose() + Rt;
+	Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
 	//if (Et(1,1)>20){
 	//	Et_1<<20,10,10;
 	//	10,20,10,
 	//	10,10,20;
 	//}else{
-	Et_1 = Et;
+	Et_1 = Et_pred;
 	//}
 	Xt_1 = g;
 	
 }
 
-void slamCamCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
+void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
+	double x= msg->pose.position.x;
+    std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
-
-	Xt=g + Kt*(Zt-g);
-	Et=(I-Kt*Ht)*Et;
+	Xt=g + Kt*(ht-g);
+	Et=(I-Kt*Ht)*Et_pred;
 	Xt_1=Xt;
 	Et_1=Et;
 }
-
-void slamBaseLinkCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
-	
-}
-/*
-//  Callback to register with tf::MessageFilter to be called when transforms are available
-void msgCallback(const boost::shared_ptr<const geometry_msgs::PointStamped>& point_ptr){
-	geometry_msgs::PointStamped point_out;
-	try {
-		tf_.transformPoint(target_frame_, *point_ptr, point_out);
-		
-		printf("point of turtle 3 in frame of turtle 1 Position(x:%f y:%f z:%f)\n", 
-				point_out.point.x,
-				point_out.point.y,
-				point_out.point.z);
-	}catch (tf::TransformException &ex) {
-		printf ("Failure %s\n", ex.what()); //Print exception which was caught
-	}
-}
-*/
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
 	*dx<< driveDist*cos(delta+theta),
@@ -184,27 +164,31 @@ int main(int argc, char** argv) {
 	0,0,0,
 	0,0,0;
 
+	Et_pred<<20,0,0,
+	0,10,0,
+	0,0,2.13;
+
+	Kt<<0;
+
+	Ht<<1,0,0,
+	0,1,0,
+	0,0,1;
+
 	I<<1,0,0,
 	0,1,0,
 	0,0,1;
 
 	std::string fixed_frame = "my_frame";
-	//std::string target_frame_ = "my_frame";
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
 	ros::NodeHandle n;
 	ros::Subscriber subOdo = n.subscribe("odo_steer", 3, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("odo_drive", 3, driveCallback);
-	//ros::Subscriber subSlamCamTf = n.subscribe("orb_slam2_ros/camera_link",2,slamCamCallback);
-	//ros::Subscriber subSlamBaseLink = n.subscribe("orb_slam2_ros/base_link",1,slamBaseLinkCallback); 
-	//tf_filter_ = new tf::MessageFilter<geometry_msgs::PointStamped>(subSlamCamTf, tf_, target_frame_, 10);
-    //tf_filter_->registerCallback( boost::bind(&PoseDrawer::msgCallback, this, _1) );
-
+	ros::Subscriber sub = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
+	
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
-
-	//ros::Publisher chatter_pub = n.advertise<std_msgs::Int16>("chatter", 1000);
 	
 	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
     pose.header.frame_id = fixed_frame;
@@ -252,6 +236,16 @@ int main(int argc, char** argv) {
 	marker_arrow.color.b = 0.0f;
 	marker_arrow.color.a = 0.5;
 
+	// Set the scale of the marker -- 1x1x1 here means 1m on a side
+	marker_cube.scale.x = 1.0;
+	marker_cube.scale.y = 1.0;
+	marker_cube.scale.z = 1.0;
+
+	// Set the scale of the marker -- 1x1x1 here means 1m on a side
+	marker_arrow.scale.x = 1.0;
+	marker_arrow.scale.y = 1.0;
+	marker_arrow.scale.z = 1.0;
+
 	//string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
 	string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
 	Mat img = imread(path);
@@ -264,21 +258,6 @@ int main(int argc, char** argv) {
 	int count = 0;
 	while (ros::ok())
 	{
-
-		/*
-		std_msgs::Int16 msg;
-
-		std::stringstream ss;
-		ss << "hello world " << count;
-		msg.data = ss.str();
-
-		ROS_INFO("%s", msg.data.c_str());
-
-
-		chatter_pub.publish(msg);
-		*/
-
-
 		// Set the frame ID and timestamp.  See the TF tutorials for information on these.
 
 		marker_arrow.header.stamp = ros::Time::now();
@@ -297,16 +276,6 @@ int main(int argc, char** argv) {
 		
 		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta);
 		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta+delta);
-
-		// Set the scale of the marker -- 1x1x1 here means 1m on a side
-		marker_cube.scale.x = 1.0;
-		marker_cube.scale.y = 1.0;
-		marker_cube.scale.z = 1.0;
-
-		// Set the scale of the marker -- 1x1x1 here means 1m on a side
-		marker_arrow.scale.x = 1.0;
-		marker_arrow.scale.y = 1.0;
-		marker_arrow.scale.z = 1.0;
 
 
 		// Publish the marker
@@ -332,28 +301,6 @@ int main(int argc, char** argv) {
 		// publish
 		//ROS_INFO("x: %f, y: %f, z: 0.0, theta: %f",x,y,Et(1,1));
 		pub_pose.publish(pose);
-
-
-		/*
-		// Cycle between different shapes
-		switch (shape)
-		{
-		case visualization_msgs::Marker::CUBE:
-			shape = visualization_msgs::Marker::SPHERE;
-			break;
-		case visualization_msgs::Marker::SPHERE:
-			shape = visualization_msgs::Marker::ARROW;
-			break;
-		case visualization_msgs::Marker::ARROW:
-			shape = visualization_msgs::Marker::CYLINDER;
-			break;
-		case visualization_msgs::Marker::CYLINDER:
-			shape = visualization_msgs::Marker::CUBE;
-			break;
-		}
-
-		*/
-
 
 		ros::spinOnce();
 		loop_rate.sleep();
