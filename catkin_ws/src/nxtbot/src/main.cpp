@@ -121,6 +121,18 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	Et=(I-Kt*Ht)*Et_pred;
 	Xt_1=Xt;
 	Et_1=Et;
+
+}
+
+
+void path_follower(){
+	float x1,x2,y1,y2;
+	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
+	float alpha= asin( (y2-y1) / ld ) - theta;
+
+	float steer_angle = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
+	
+	float drive_dist = ld*alpha/sin(alpha);
 }
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
