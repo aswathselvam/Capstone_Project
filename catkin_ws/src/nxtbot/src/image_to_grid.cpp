@@ -96,9 +96,27 @@ void grow(cv::Mat& src, cv::Mat& dest, cv::Mat& mask, cv::Point seed, int thresh
 }
 
 int main(int argc, char **argv) {
-    string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
+	Mat img;
+
+	cv::VideoCapture vcap;
+	const std::string videoStreamAddress = "http://192.168.29.132:8080";
+	//open the video stream and make sure it's opened
+    if(!vcap.open(videoStreamAddress)) {
+        std::cout << "Error opening video stream or file" << std::endl;
+        return -1;
+    }
+
+	for(;;) {
+		if(!vcap.read(img)) {
+			std::cout << "No frame" << std::endl;
+			cv::waitKey();
+		}
+	}
+	
+	//string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
 	//string path = "road.jpeg";
-	Mat img = imread(path);
+	//img = imread(path);
+	
 	Size sz = img.size();
 
 	if (img.cols > 500 || img.rows > 500) {
@@ -215,21 +233,75 @@ int main(int argc, char **argv) {
     ros::NodeHandle n;
     ros::Rate loop_rate(1);
     ros::Publisher pub_octomap = n.advertise<octomap_msgs::Octomap>("my_octomap", 1);
-    octomap_msgs::Octomap octomap;
-        cout<<"Conversion successfull";
 
-    OcTree myOctomap("simple_tree.bt");
-    if(octomap_msgs::binaryMapToMsg(tree, octomap)|| 1==1){
-        cout<<"Conversion successfull";
-        while (ros::ok())
-        {
-        //rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
-        octomap.header.frame_id = "map";
-        octomap.header.stamp = ros::Time::now();
-        pub_octomap.publish(octomap);
-        ros::spinOnce();
-        loop_rate.sleep();
+    octomap_msgs::Octomap octomap;
+	octomap.header.frame_id = "my_frame";
+
+    //OcTree myOctomap("simple_tree.bt");
+
+	while (ros::ok()){
+
+		if(!vcap.read(img)) {
+            std::cout << "image_to_grid.cpp: No frame " << std::endl;
+			continue;
         }
+
+		if (dest.at<uchar>(Point(x, y)) == 0) {
+		grow(img, dest, mask, Point(x, y), 200);
+
+		int mask_area = (int)sum(mask).val[0];
+		if (mask_area > min_region_area) {
+			dest = dest + mask * padding;
+			mask = mask * 255;
+			imshow("mask", mask);
+			//waitKey(0);
+			cout << "Mask.size() " << mask.size() << endl;
+			if (++padding > max_region_num) { cout << "run out of max_region"; return -1; }
+		}
+		else dest = dest + mask * 255;
+		//mask -= mask;
+		}
+
+		cuda::GpuMat gpuimg = cuda::GpuMat(img);
+		cuda::GpuMat gpuim_out = cuda::GpuMat(img);
+		cuda::GpuMat gpumask = cuda::GpuMat(mask);
+		cuda::GpuMat gpumask_out = cuda::GpuMat(mask);
+
+		cuda::warpPerspective(gpuimg, gpuim_out, H, im_out.size(), INTER_LINEAR, BORDER_CONSTANT,0);
+		cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
+
+		gpuim_out.download(im_out);
+		gpumask_out.download(mask_out);
+
+		Mat outImg = Mat::zeros(100, 100, CV_8UC1);
+		//cv::resize(mask_out, outImg, cv::Size(100,100));
+		Mat gray;
+		cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
+
+
+		int val=0;
+		for (int x = 0; x < gray.rows; x++)
+		{
+			for (int y = 0; y < gray.cols; y++)
+			{
+				point3d endpoint((float)x * 0.01f, (float)y * 0.01f, 0.0f);
+				val=gray.at<char>(x,y);
+				//cout<<val <<" x " << x<<" y: "<<y<<"\t";
+				//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
+				if (val<0){
+					tree.updateNode(endpoint, false); // integrate 'occupied' measurement
+				}else{
+					tree.updateNode(endpoint, true); // integrate 'occupied' measurement
+				}
+			}
+		}
+		if(octomap_msgs::binaryMapToMsg(tree, octomap)|| 1==1){
+			octomap.header.stamp = ros::Time::now();
+			pub_octomap.publish(octomap);
+			ros::spinOnce();
+			loop_rate.sleep();
+		}
+
     }
 
 
