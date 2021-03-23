@@ -23,8 +23,11 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core.hpp>
 
+#include "octomap_header.h"
+
 using namespace std;
 using namespace cv;
+
 
 //typedef std_msgs::Int16 odoint;
 
@@ -66,11 +69,17 @@ void refresh_Xt(Eigen::MatrixXd* Xt);
 void refresh_Gt(Eigen::MatrixXd* Gt);
 void refresh_Vt(Eigen::MatrixXd* Vt);
 
+void path_follower();
 
 geometry_msgs::PoseWithCovarianceStamped pose;
 ros::Publisher pub_drive_motor;
 ros::Publisher pub_steer_motor;
 std_msgs::Int16 msg;
+
+octomap::AbstractOcTree* my_tree 
+octomap::OcTree *my_octree;
+Point dest_point;
+Point next_node;
 
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
@@ -131,8 +140,182 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 }
 
 
+bool isStateValid(const ob::State *state){
+	// TODO: Remove this return statement
+	return true;
+
+	const ob::RealVectorStateSpace::StateType *pos = state->as<ob::RealVectorStateSpace::StateType>();
+
+    // check validity of state defined by pos
+	//fcl::Vector3<double> translation(pos->values[0],pos->values[1],pos->values[2]);
+
+	octomap::point3d query(pos->values[0],pos->values[1],0);
+  	octomap::OcTreeNode *result = my_octree->search(query);
+	
+	if((result != NULL) && (result->getValue() >= 0.5f)){
+		return true;
+	}else{
+		return false;
+	}
+}
+
+
+void plan()
+{
+	// construct the state space we are planning in
+	ob::StateSpacePtr space(new ob::RealVectorStateSpace(2));
+
+    // set the bounds for the R^3 part of SE(3)
+	space->as<ob::RealVectorStateSpace>()->setBounds(-50, 50);
+    // bounds.setLow(-1);
+    // bounds.setHigh(1);
+	//bounds.setLow(0,-30);
+	//bounds.setHigh(0,30);
+	//bounds.setLow(1,-30);
+	//bounds.setHigh(1,30);
+	//bounds.setLow(2,-1);
+	//bounds.setHigh(2,1);
+
+	//space->as<ob::SE3StateSpace>()->setBounds(bounds);
+
+    // construct an instance of  space information from this state space
+	ob::SpaceInformationPtr si(new ob::SpaceInformation(space));
+
+    // set state validity checking for this space
+	si->setStateValidityChecker(std::bind(&isStateValid, std::placeholders::_1));
+
+	// Set our robot's starting state to be the bottom-left corner of
+	// the environment, or (0,0).
+	ob::ScopedState<> start(space);
+	start->as<ob::RealVectorStateSpace::StateType>()->values[0] = g(0,0);
+	start->as<ob::RealVectorStateSpace::StateType>()->values[1] = g(1,0);
+	
+	// Set our robot's goal state to be the top-right corner of the
+	// environment, or (1,1).
+	ob::ScopedState<> goal(space);
+	goal->as<ob::RealVectorStateSpace::StateType>()->values[0] = 10.0;
+	goal->as<ob::RealVectorStateSpace::StateType>()->values[1] = 20.0;
+
+    // create a problem instance
+	ob::ProblemDefinitionPtr pdef(new ob::ProblemDefinition(si));
+
+    // set the start and goal states
+	pdef->setStartAndGoalStates(start, goal);
+
+	//pdef->setOptimizationObjective(getPathLengthObjective(si));
+
+    // create a planner for the defined space
+	ob::PlannerPtr planner(new og::RRTConnect(si));
+
+    // set the problem we are trying to solve for the planner
+	planner->setProblemDefinition(pdef);
+
+    // perform setup steps for the planner
+	planner->setup();
+
+
+    // print the settings for this space
+	si->printSettings(std::cout);
+
+    // print the problem settings
+	pdef->print(std::cout);
+
+    // attempt to solve the problem within one second of planning time
+	ob::PlannerStatus solved = planner->solve(1.0);
+
+
+	std::cout << "Reached 2: " << std::endl;
+	if (solved)
+	{
+        // get the goal representation from the problem definition (not the same as the goal state)
+        // and inquire about the found path
+		std::cout << "Found solution:" << std::endl;
+		ob::PathPtr path = pdef->getSolutionPath();
+		og::PathGeometric* pth = pdef->getSolutionPath()->as<og::PathGeometric>();
+		pth->printAsMatrix(std::cout);
+
+		
+		//Publish path as markers
+
+		visualization_msgs::Marker marker;
+		marker.action = visualization_msgs::Marker::DELETEALL;
+		vis_pub.publish(marker);
+
+		for (std::size_t idx = 0; idx < pth->getStateCount (); idx++)
+		{
+                // cast the abstract state type to the type we expect
+			const ob::RealVectorStateSpace::StateType *pos = pth->getState(idx)->as<ob::RealVectorStateSpace::StateType>();
+
+            // extract the first component of the state and cast it to what we expect
+			//const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
+
+            // extract the second component of the state and cast it to what we expect
+			//const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
+			
+			if (idx==0){
+				next_node.x=pos->values[0];
+				next_node.y=pos->values[1];
+				path_follower();
+			}
+
+
+			marker.header.frame_id = "map";
+			marker.header.stamp = ros::Time();
+			marker.ns = "path";
+			marker.id = idx;
+			marker.type = visualization_msgs::Marker::CUBE;
+			marker.action = visualization_msgs::Marker::ADD;
+			marker.pose.position.x = pos->values[0];
+			marker.pose.position.y = pos->values[1];
+			marker.pose.position.z = pos->values[2];
+			marker.pose.orientation.x = 0;
+			marker.pose.orientation.y = 0;
+			marker.pose.orientation.z = 0;
+			marker.pose.orientation.w = 1;
+			marker.scale.x = 1;
+			marker.scale.y = 0.5;
+			marker.scale.z = 0.5;
+			marker.color.a = 1.0;
+			marker.color.r = 0.0;
+			marker.color.g = 1.0;
+			marker.color.b = 0.0;
+			vis_pub.publish(marker);
+			ros::Duration(0.2).sleep();
+			std::cout << "Published marker: " << idx << std::endl;  
+		}
+		ros::Rate loop_rate(0.1);
+		/*
+		while(ros::ok){
+		traj_pub.publish(msg);
+		vis_pub.publish(marker);
+		ros::spinOnce();
+		loop_rate.sleep();
+		}
+		*/
+
+
+	}
+	else
+		std::cout << "No solution found" << std::endl;
+}
+
+void octomapCallback(const octomap_msgs::OctomapConstPtr& octomap_msg){
+	//my_octree = 
+	my_tree= octomap_msgs::msgToMap(*octomap_msg);
+	my_octree = dynamic_cast <octomap::OcTree*> (tree);
+	plan();
+}
+
+
+
 void path_follower(){
-	float x1,x2,y1,y2;
+
+	float x1=g(0,0);
+	float x2=next_node.x;
+	
+	float y1=g(1,0);
+	float y2=next_node.y;
+
 	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
@@ -218,6 +401,7 @@ int main(int argc, char** argv) {
 	0,1,0,
 	0,0,1;
 
+	
 	std::string fixed_frame = "my_frame";
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
@@ -226,13 +410,18 @@ int main(int argc, char** argv) {
 	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 3, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 3, driveCallback);
 	ros::Subscriber sub = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
-	
+	ros::Subscriber subOctomap = n.subscribe("my_octomap",1, octomapCallback);
+
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
 	
 	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
 	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",0);
 	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",0);
+
+	vis_pub = n.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
+	traj_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",10);
+	std::cout << "OMPL version: " << OMPL_VERSION << std::endl;
 
     pose.header.frame_id = fixed_frame;
 

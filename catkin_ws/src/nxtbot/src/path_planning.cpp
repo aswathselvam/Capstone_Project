@@ -97,7 +97,7 @@ ob::OptimizationObjectivePtr getPathLengthObjective(const ob::SpaceInformationPt
     return ob::OptimizationObjectivePtr(new ob::PathLengthOptimizationObjective(si));
 }
 
-void plan(void)
+void plan()
 {
 	// construct the state space we are planning in
 	ob::StateSpacePtr space(new ob::RealVectorStateSpace(2));
@@ -242,20 +242,6 @@ void sup(){
 }
 
 
-void octomapCallback(const octomap_msgs::Octomap &msg)
-{
-
-
-    //loading octree from binary
-	const std::string filename = "/home/aswath/simple_tree.bt";
-	temp_tree=new octomap::OcTree(0.1);
-	temp_tree->readBinary(filename);
-	//fcl::OcTree* tree = new fcl::OcTree(std::shared_ptr<const octomap::OcTree>(&temp_tree));
-	
-	plan();
-
-	// ros::Duration(10).sleep(); //Plan once every ten seconds
-}
 
 int main(int argc, char **argv)
 {

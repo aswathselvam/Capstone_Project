@@ -37,7 +37,7 @@ def moveRobot(msg):
     #motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
 
 def steer(msg):
-    motorSteer.weak_turn(power=50,tacho_units=msg.data)
+    motorSteer.weak_turn(power=60,tacho_units=msg.data)
 
 
 def drive(msg):

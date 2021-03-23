@@ -214,7 +214,7 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "octomap_trial");
     ros::NodeHandle n;
     ros::Rate loop_rate(1);
-    ros::Publisher pub_octomap = n.advertise<octomap_msgs::Octomap>("octomap_loaded", 1);
+    ros::Publisher pub_octomap = n.advertise<octomap_msgs::Octomap>("my_octomap", 1);
     octomap_msgs::Octomap octomap;
         cout<<"Conversion successfull";
 
