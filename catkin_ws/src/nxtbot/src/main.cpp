@@ -10,6 +10,7 @@
 #include <message_filters/subscriber.h>
 #include <tf/message_filter.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <std_msgs/Int8.h>
 
 
 
@@ -66,6 +67,10 @@ void refresh_Vt(Eigen::MatrixXd* Vt);
 
 
 geometry_msgs::PoseWithCovarianceStamped pose;
+ros::Publisher pub_drive_motor;
+ros::Publisher pub_steer_motor;
+std_msgs::Int16 msg;
+
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -131,8 +136,14 @@ void path_follower(){
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
 	float steer_angle = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
-	
+
 	float drive_dist = ld*alpha/sin(alpha);
+
+	msg.data = steer_angle;
+	pub_steer_motor.publish(msg);
+	
+	msg.data = drive_dist;
+	pub_drive_motor.publish(msg);
 }
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
@@ -204,14 +215,17 @@ int main(int argc, char** argv) {
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
 	ros::NodeHandle n;
-	ros::Subscriber subOdo = n.subscribe("odo_steer", 3, steerCallback);
-	ros::Subscriber subDrive = n.subscribe("odo_drive", 3, driveCallback);
+	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 3, steerCallback);
+	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 3, driveCallback);
 	ros::Subscriber sub = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
 	
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
 	
 	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
+	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",0);
+	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",0);
+
     pose.header.frame_id = fixed_frame;
 
 	ros::Rate loop_rate(5);
