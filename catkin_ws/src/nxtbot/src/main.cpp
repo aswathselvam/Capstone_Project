@@ -38,6 +38,7 @@ float RAD_STEER_PER_TICK;
 float RADIUS		=3;
 float TICKS			=360;
 int L 				= 10;
+int MAX_STEER_ANGLE = 80;
 
 
 Eigen::MatrixXd dx(3, 1);			//Displacement of wheels 
@@ -135,9 +136,16 @@ void path_follower(){
 	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
-	float steer_angle = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
+	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
+	int steer_angle =  steer_rad * M_PI ; 
+	
+	float drive_rad = ld*alpha/sin(alpha);
+	int drive_dist = drive_rad * M_PI ; 
 
-	float drive_dist = ld*alpha/sin(alpha);
+	if ( abs(steer_angle) > MAX_STEER_ANGLE ){
+		//move to next Point, or try some other maneuver
+		return ;
+	}
 
 	msg.data = steer_angle;
 	pub_steer_motor.publish(msg);

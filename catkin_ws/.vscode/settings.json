@@ -8,6 +8,9 @@
     "files.associations": {
         "algorithm": "cpp",
         "functional": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "chrono": "cpp",
+        "complex": "cpp",
+        "cmath": "cpp"
     }
 }
