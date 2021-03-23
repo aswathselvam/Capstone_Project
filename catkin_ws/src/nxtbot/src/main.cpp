@@ -76,7 +76,7 @@ ros::Publisher pub_drive_motor;
 ros::Publisher pub_steer_motor;
 std_msgs::Int16 msg;
 
-octomap::AbstractOcTree* my_tree 
+octomap::AbstractOcTree* my_tree; 
 octomap::OcTree *my_octree;
 Point dest_point;
 Point next_node;
@@ -302,7 +302,7 @@ void plan()
 void octomapCallback(const octomap_msgs::OctomapConstPtr& octomap_msg){
 	//my_octree = 
 	my_tree= octomap_msgs::msgToMap(*octomap_msg);
-	my_octree = dynamic_cast <octomap::OcTree*> (tree);
+	my_octree = dynamic_cast <octomap::OcTree*> (my_tree);
 	plan();
 }
 
@@ -320,20 +320,20 @@ void path_follower(){
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
 	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
-	int steer_angle =  steer_rad * M_PI ; 
+	int steer_ticks =  steer_rad * 360 / M_PI ; 
 	
 	float drive_rad = ld*alpha/sin(alpha);
-	int drive_dist = drive_rad * M_PI ; 
+	int drive_ticks = drive_rad * RADIUS * 360 / M_PI ; 
 
-	if ( abs(steer_angle) > MAX_STEER_ANGLE ){
+	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
 		return ;
 	}
 
-	msg.data = steer_angle;
+	msg.data = steer_ticks;
 	pub_steer_motor.publish(msg);
 	
-	msg.data = drive_dist;
+	msg.data = drive_ticks;
 	pub_drive_motor.publish(msg);
 }
 
