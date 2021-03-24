@@ -11,6 +11,7 @@
 #include <tf/message_filter.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/Int8.h>
+#include <sensor_msgs/Image.h>
 
 
 
@@ -24,6 +25,7 @@
 #include <opencv2/core.hpp>
 
 #include "octomap_header.h"
+#include "image_to_grid.h"
 
 using namespace std;
 using namespace cv;
@@ -81,6 +83,27 @@ octomap::OcTree *my_octree;
 Point dest_point;
 Point next_node;
 
+Point pt(-1, -1);
+int threshold = 200;
+const uchar max_region_num = 100;
+const double min_region_area_factor = 0.0;
+const Point PointShift2D[8] = {
+	Point(1, 0),
+	Point(1, -1),
+	Point(0, -1),
+	Point(-1, -1),
+	Point(-1, 0),
+	Point(-1, 1),
+	Point(0, 1),
+	Point(1, 1)
+};
+Mat HomographyMatrix;
+
+/*
+Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
+ -0.08703559309736916, -6.912913870558576, 1819.452587986193;
+ -7.955721489704677e-05, -0.004179839334454694, 1];
+*/
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -138,6 +161,105 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	Et_1=Et;
 
 }
+
+
+void grow(cv::Mat& src, cv::Mat& dest, cv::Mat& mask, cv::Point seed, int threshold) {
+
+	stack<cv::Point> point_stack;
+	point_stack.push(seed);
+
+	while (!point_stack.empty()) {
+		cv::Point center = point_stack.top();
+		mask.at<uchar>(center) = 1;
+		point_stack.pop();
+
+		for (int i = 0; i < 8; ++i) {
+			cv::Point estimating_point = center + PointShift2D[i];
+			if (estimating_point.x < 0
+				|| estimating_point.x > src.cols - 1
+				|| estimating_point.y < 0
+				|| estimating_point.y > src.rows - 1) {
+
+				continue;
+			}
+			else {
+
+				int delta = int(pow(src.at<cv::Vec3b>(center)[0] - src.at<cv::Vec3b>(estimating_point)[0], 2)
+					+ pow(src.at<cv::Vec3b>(center)[1] - src.at<cv::Vec3b>(estimating_point)[1], 2)
+					+ pow(src.at<cv::Vec3b>(center)[2] - src.at<cv::Vec3b>(estimating_point)[2], 2));
+				if (dest.at<uchar>(estimating_point) == 0
+					&& mask.at<uchar>(estimating_point) == 0
+					&& delta < threshold) {
+					mask.at<uchar>(estimating_point) = 1;
+					point_stack.push(estimating_point);
+				}
+			}
+		}
+	}
+}
+/*
+void imageCallback(const sensor_msgs::ImageConstPtr& msg){
+
+	cv::Mat dImg =  cv_ptr->image;
+    double min = 0;
+    double max = 1000;
+	cv::Mat img_scaled_8u;
+	cv::Mat(cv_ptr->image-min).convertTo(img_scaled_8u, CV_8UC1, 255. / (max - min));
+	cv::cvtColor(img_scaled_8u, dImg, CV_GRAY2RGB);
+
+	int min_region_area = int(min_region_area_factor * img.cols * img.rows);
+	uchar padding = 1;
+	Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+
+	if (dest.at<uchar>(Point(x, y)) == 0) {
+		grow(img, dest, mask, Point(x, y), 200);
+
+		int mask_area = (int)sum(mask).val[0];
+		if (mask_area > min_region_area) {
+			dest = dest + mask * padding;
+			mask = mask * 255;
+			imshow("mask", mask);
+			//waitKey(0);
+			cout << "Mask.size() " << mask.size() << endl;
+			if (++padding > max_region_num) { cout << "run out of max_region"; return -1; }
+		}
+		else dest = dest + mask * 255;
+		//mask -= mask;
+		}
+
+		cuda::GpuMat gpumask = cuda::GpuMat(mask);
+		cuda::GpuMat gpumask_out = cuda::GpuMat(mask);
+		cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
+
+		gpuim_out.download(im_out);
+		gpumask_out.download(mask_out);
+
+		Mat outImg = Mat::zeros(100, 100, CV_8UC1);
+		//cv::resize(mask_out, outImg, cv::Size(100,100));
+		Mat gray;
+		cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
+
+
+		int val=0;
+		for (int x = 0; x < gray.rows; x++)
+		{
+			for (int y = 0; y < gray.cols; y++)
+			{
+				point3d endpoint((float)x * 0.01f, (float)y * 0.01f, 0.0f);
+				val=gray.at<char>(x,y);
+				//cout<<val <<" x " << x<<" y: "<<y<<"\t";
+				//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
+				if (val<0){
+					tree.updateNode(endpoint, false); // integrate 'occupied' measurement
+				}else{
+					tree.updateNode(endpoint, true); // integrate 'occupied' measurement
+				}
+			}
+		}
+
+}
+*/
 
 
 bool isStateValid(const ob::State *state){
@@ -401,7 +523,18 @@ int main(int argc, char** argv) {
 	0,1,0,
 	0,0,1;
 
-	
+	cv::Mat_<double> H(3,3);
+	H<< -0.4329863893783613, -5.854818923942802, 1512.014098472485,
+	-0.08703559309736916, -6.912913870558576, 1819.452587986193,
+	 -7.955721489704677e-05, -0.004179839334454694, 1;
+
+/*
+Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
+ -0.08703559309736916, -6.912913870558576, 1819.452587986193;
+ -7.955721489704677e-05, -0.004179839334454694, 1];
+*/
+
+
 	std::string fixed_frame = "my_frame";
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10

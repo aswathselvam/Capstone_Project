@@ -26,19 +26,12 @@
 #include <stack>
 #include <cstdlib>
 
-#include <ompl/base/ScopedState.h>
-#include <ompl/geometric/SimpleSetup.h>
-#include <ompl/base/spaces/DubinsStateSpace.h>
-#include <ompl/base/spaces/ReedsSheppStateSpace.h>
-
 using namespace std;
 using namespace cv;
 using namespace octomap;
-namespace ob = ompl::base;
-namespace og = ompl::geometric;
 
 Point pt(-1, -1);
-int threshold = 200;
+int threshold = 20;
 const uchar max_region_num = 100;
 const double min_region_area_factor = 0.0;
 const Point PointShift2D[8] = {
@@ -51,6 +44,12 @@ const Point PointShift2D[8] = {
 	Point(0, 1),
 	Point(1, 1)
 };
+cuda::GpuMat gpumask;
+cuda::GpuMat gpumask_out;
+Mat gray;
+Mat dest;
+Mat mask;
+
 
 void mouse_callback(int event, int x, int y, int flag, void* param) {
 	if (event == EVENT_LBUTTONDOWN) {
@@ -99,20 +98,20 @@ int main(int argc, char **argv) {
 	Mat img;
 
 	cv::VideoCapture vcap;
-	const std::string videoStreamAddress = "http://192.168.29.132:8080";
 	//open the video stream and make sure it's opened
-    if(!vcap.open(videoStreamAddress)) {
-        std::cout << "Error opening video stream or file" << std::endl;
+    
+	vcap.open("http://192.168.29.132:8080/video", cv::CAP_ANY);
+    // check if we succeeded
+    if (!vcap.isOpened()) {
+        cerr << "ERROR! Unable to open camera\n";
         return -1;
     }
 
-	for(;;) {
-		if(!vcap.read(img)) {
-			std::cout << "No frame" << std::endl;
-			cv::waitKey();
-		}
+	vcap.read(img);
+	if (img.empty()) {
+		cerr << "ERROR! blank frame grabbed\n";
+		return 0;
 	}
-	
 	//string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
 	//string path = "road.jpeg";
 	//img = imread(path);
@@ -125,42 +124,24 @@ int main(int argc, char **argv) {
 
 	imshow("Input image", img);
 	cout << "Size of input image: " << img.size() << endl;
-	int rows = sz.height;
-	int cols = sz.width;
-	cout << "Size of input img.height" << rows << endl;
-	cout << "Size of input img.width" << cols << endl;
+	cout << "Size of input img.height" << img.rows << endl;
+	cout << "Size of input img.width" << img.cols << endl;
 
-	int sfr = 2;
-	int sfc = 3;
-	int out_im_rows = sfr * rows;
-	int out_im_cols = sfc * cols;
-
-	Mat im_out(out_im_rows, out_im_cols, CV_8UC1);
-	Mat mask_out(out_im_rows, out_im_cols, CV_8UC1);
+	Mat im_out(img.rows, img.cols, CV_8UC1);
+	Mat mask_out(img.rows, img.cols, CV_8UC1);
 	cout << "Size of Bird's eye view image: " << im_out.size() << endl;
 
 	int min_region_area = int(min_region_area_factor * img.cols * img.rows);
 	uchar padding = 1;
-	Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
-	Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-	int x = img.cols / 2, y = img.rows - 50;
-	if (dest.at<uchar>(Point(x, y)) == 0) {
-		grow(img, dest, mask, Point(x, y), 200);
-
-		int mask_area = (int)sum(mask).val[0];
-		if (mask_area > min_region_area) {
-			dest = dest + mask * padding;
-			mask = mask * 255;
-			imshow("mask", mask);
-			//waitKey(0);
-			cout << "Mask.size() " << mask.size() << endl;
-			if (++padding > max_region_num) { cout << "run out of max_region"; return -1; }
-		}
-		else dest = dest + mask * 255;
-		//mask -= mask;
-	}
-
+	int x = img.cols / 2, y = img.rows - 20;
+	grow(img, dest, mask, Point(x, y), 100);
+	
+	dest = dest + mask * padding;
+	mask = mask * 255;
+	imshow("mask", mask);
 
 	vector<Point2f> src;
 	src.push_back(Point2f(200, 310));
@@ -168,10 +149,8 @@ int main(int argc, char **argv) {
 	src.push_back(Point2f(400, 265));
 	src.push_back(Point2f(475, 310));
 
-
-
-	int row_offset = out_im_rows - rows;
-	int mid_align_offset = (out_im_cols / 2) - (cols / 2);
+	int row_offset = img.rows - 310;
+	int mid_align_offset = img.cols/2;
 	int zoom_out_factor = 1;
 
 	vector<Point2f> dst;
@@ -180,8 +159,17 @@ int main(int argc, char **argv) {
 	dst.push_back(Point2f((475 + mid_align_offset), 339));
 	dst.push_back(Point2f((475 + mid_align_offset), 310 + row_offset));
 
+	bool calibrate=true;
+	
 	Mat H = findHomography(src, dst);
 	cout << "H:" << H << endl;
+	
+	/*
+	cv::Mat_<double> H(3,3);
+	H<< -0.4329863893783613, -5.854818923942802, 800.014098472485,
+	-0.08703559309736916, -6.912913870558576, 600.452587986193,
+	-7.955721489704677e-05, -0.004179839334454694, 1;
+	*/
 
 	cuda::GpuMat gpuimg = cuda::GpuMat(img);
 	cuda::GpuMat gpuim_out = cuda::GpuMat(img);
@@ -202,9 +190,6 @@ int main(int argc, char **argv) {
 	setMouseCallback("Output", mouse_callback);
 	imwrite("Output.jpg", im_out);
 
-	Mat outImg = Mat::zeros(100, 100, CV_8UC1);
-	//cv::resize(mask_out, outImg, cv::Size(100,100));
-	Mat gray;
 	cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
 	imshow("Threshold", gray);
 	waitKey(0);
@@ -236,48 +221,29 @@ int main(int argc, char **argv) {
 
     octomap_msgs::Octomap octomap;
 	octomap.header.frame_id = "my_frame";
-
-    //OcTree myOctomap("simple_tree.bt");
+	//rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10 
+    
+	//OcTree myOctomap("simple_tree.bt");
 
 	while (ros::ok()){
-
-		if(!vcap.read(img)) {
-            std::cout << "image_to_grid.cpp: No frame " << std::endl;
-			continue;
+		
+        vcap.read(img);
+        if (img.empty()) {
+            cerr << "ERROR! blank frame grabbed\n";
+            continue;
         }
+		Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
+		Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-		if (dest.at<uchar>(Point(x, y)) == 0) {
-		grow(img, dest, mask, Point(x, y), 200);
-
-		int mask_area = (int)sum(mask).val[0];
-		if (mask_area > min_region_area) {
-			dest = dest + mask * padding;
-			mask = mask * 255;
-			imshow("mask", mask);
-			//waitKey(0);
-			cout << "Mask.size() " << mask.size() << endl;
-			if (++padding > max_region_num) { cout << "run out of max_region"; return -1; }
-		}
-		else dest = dest + mask * 255;
-		//mask -= mask;
-		}
-
-		cuda::GpuMat gpuimg = cuda::GpuMat(img);
-		cuda::GpuMat gpuim_out = cuda::GpuMat(img);
-		cuda::GpuMat gpumask = cuda::GpuMat(mask);
-		cuda::GpuMat gpumask_out = cuda::GpuMat(mask);
-
-		cuda::warpPerspective(gpuimg, gpuim_out, H, im_out.size(), INTER_LINEAR, BORDER_CONSTANT,0);
+		grow(img, dest, mask, Point(x, y), 100);
+		
+		gpumask = cuda::GpuMat(mask);
+		gpumask_out = cuda::GpuMat(mask);
 		cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
-
-		gpuim_out.download(im_out);
 		gpumask_out.download(mask_out);
 
-		Mat outImg = Mat::zeros(100, 100, CV_8UC1);
-		//cv::resize(mask_out, outImg, cv::Size(100,100));
-		Mat gray;
 		cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
-
+		imshow("Mask output", gray);
 
 		int val=0;
 		for (int x = 0; x < gray.rows; x++)

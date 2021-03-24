@@ -190,6 +190,9 @@ include_directories(
  add_executable(path_planning src/path_planning.cpp)
  add_executable(tf_listener src/tf_listener.cpp)
 
+ add_executable(camstream src/read_from_cam.cpp)
+ add_executable(get_homography src/get_homography.cpp)
+
  ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -240,6 +243,14 @@ include_directories(
 
 target_link_libraries(tf_listener 
 ${catkin_LIBRARIES}
+)
+
+target_link_libraries(camstream
+  ${OpenCV_LIBS}
+)
+
+target_link_libraries(get_homography
+  ${OpenCV_LIBS}
 )
 #############
 ## Install ##
