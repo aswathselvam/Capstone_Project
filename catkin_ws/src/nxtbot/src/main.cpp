@@ -230,12 +230,21 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	imshow("Perspective", mask);
 	waitKey(10);
 
+
 	int val=0;
-	for (int x = 0; x < mask.rows; x++)
+	for (int x = -mask.rows/2; x < mask.rows/2; x++)
 	{
-		for (int y = 0; y < mask.cols; y++)
+		for (int y = -mask.cols/2; y < mask.cols/2; y++)
 		{
-			octomap::point3d endpoint((float)x * 0.01f* PPCM_WIDTH, (float)y * 0.01f * PPCM_HEIGHT, 0.0f);
+			//Transform coordinate from local to global 
+			float x_;
+			float y_;
+			x_=cos(theta)*x-sin(theta)*y;
+			y_=sin(theta)*x+cos(theta)*x;
+			x_+=g(0,0);
+			y_+=g(1,0);
+
+			octomap::point3d endpoint((float)x_ * 0.01f* PPCM_WIDTH, (float)y_ * 0.01f * PPCM_HEIGHT, 0.0f);
 			val=mask.at<char>(x,y);
 			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
 			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
