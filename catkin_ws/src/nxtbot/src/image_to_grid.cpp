@@ -46,9 +46,11 @@ const Point PointShift2D[8] = {
 };
 cuda::GpuMat gpumask;
 cuda::GpuMat gpumask_out;
-Mat gray;
+Mat binary;
 Mat dest;
 Mat mask;
+double ppcm_width = 0.0377622, ppcm_height=0.0487805;
+
 
 
 void mouse_callback(int event, int x, int y, int flag, void* param) {
@@ -103,116 +105,27 @@ int main(int argc, char **argv) {
 	vcap.open("http://192.168.29.132:8080/video", cv::CAP_ANY);
     // check if we succeeded
     if (!vcap.isOpened()) {
-        cerr << "ERROR! Unable to open camera\n";
+        cout << "ERROR! Unable to open camera\n";
         return -1;
     }
 
 	vcap.read(img);
 	if (img.empty()) {
-		cerr << "ERROR! blank frame grabbed\n";
+		cout << "ERROR! blank frame grabbed\n";
 		return 0;
 	}
-	//string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
-	//string path = "road.jpeg";
-	//img = imread(path);
-	
-	Size sz = img.size();
-
-	if (img.cols > 500 || img.rows > 500) {
-		//resize(img, img, Size(0, 0), 0.5, 0.5);
-	}
-
-	imshow("Input image", img);
-	cout << "Size of input image: " << img.size() << endl;
-	cout << "Size of input img.height" << img.rows << endl;
-	cout << "Size of input img.width" << img.cols << endl;
-
-	Mat im_out(img.rows, img.cols, CV_8UC1);
-	Mat mask_out(img.rows, img.cols, CV_8UC1);
-	cout << "Size of Bird's eye view image: " << im_out.size() << endl;
-
-	int min_region_area = int(min_region_area_factor * img.cols * img.rows);
-	uchar padding = 1;
 	dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
 	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	int x = img.cols / 2, y = img.rows - 20;
-	grow(img, dest, mask, Point(x, y), 100);
-	
-	dest = dest + mask * padding;
-	mask = mask * 255;
-	imshow("mask", mask);
 
-	vector<Point2f> src;
-	src.push_back(Point2f(200, 310));
-	src.push_back(Point2f(285, 265));
-	src.push_back(Point2f(400, 265));
-	src.push_back(Point2f(475, 310));
-
-	int row_offset = img.rows - 310;
-	int mid_align_offset = img.cols/2;
-	int zoom_out_factor = 1;
-
-	vector<Point2f> dst;
-	dst.push_back(Point2f((200 + mid_align_offset), 310 + row_offset));
-	dst.push_back(Point2f((200 + mid_align_offset), 286));
-	dst.push_back(Point2f((475 + mid_align_offset), 339));
-	dst.push_back(Point2f((475 + mid_align_offset), 310 + row_offset));
-
-	bool calibrate=true;
-	
-	Mat H = findHomography(src, dst);
-	cout << "H:" << H << endl;
-	
-	/*
 	cv::Mat_<double> H(3,3);
-	H<< -0.4329863893783613, -5.854818923942802, 800.014098472485,
-	-0.08703559309736916, -6.912913870558576, 600.452587986193,
-	-7.955721489704677e-05, -0.004179839334454694, 1;
-	*/
 
-	cuda::GpuMat gpuimg = cuda::GpuMat(img);
-	cuda::GpuMat gpuim_out = cuda::GpuMat(img);
-	cuda::GpuMat gpumask = cuda::GpuMat(mask);
-	cuda::GpuMat gpumask_out = cuda::GpuMat(mask);
-
-	cuda::warpPerspective(gpuimg, gpuim_out, H, im_out.size(), INTER_LINEAR, BORDER_CONSTANT,0);
-   	cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
-
-	gpuim_out.download(im_out);
-	gpumask_out.download(mask_out);
-	namedWindow("Output", 1);
-	resize(im_out, im_out, img.size());
-	imshow("Output", im_out);
-	namedWindow("Mask output", 1);
-	resize(mask_out, mask_out, mask_out.size());
-	imshow("Mask output", mask_out);
-	setMouseCallback("Output", mouse_callback);
-	imwrite("Output.jpg", im_out);
-
-	cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
-	imshow("Threshold", gray);
-	waitKey(0);
+	H<< -0.3533094995479479, -1.770444793641235, 557.3953069956937,
+ 	0.1624698020692046, -3.595786418237763, 1115.419594647802,
+	0.0002770977906833813, -0.00456378934828412, 1;
 
     octomap::OcTree tree(0.01); // create empty tree with resolution 0.1
-                        // insert some measurements of occupied cells
-	int val=0;
-    for (int x = 0; x < gray.rows; x++)
-    {
-        for (int y = 0; y < gray.cols; y++)
-        {
-			
-            point3d endpoint((float)x * 0.01f, (float)y * 0.01f, 0.0f);
-			val=gray.at<char>(x,y);
-			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
-			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
-			if (val<0){
-            	tree.updateNode(endpoint, false); // integrate 'occupied' measurement
-			}else{
-				tree.updateNode(endpoint, true); // integrate 'occupied' measurement
-			}
-        }
-    }
 
     ros::init(argc, argv, "octomap_trial");
     ros::NodeHandle n;
@@ -225,33 +138,43 @@ int main(int argc, char **argv) {
     
 	//OcTree myOctomap("simple_tree.bt");
 
-	while (ros::ok()){
-		
+	while (ros::ok()){	
+		for(int i = 0; i < 50; i++) {
+			vcap.grab();
+		}	
+
         vcap.read(img);
         if (img.empty()) {
-            cerr << "ERROR! blank frame grabbed\n";
+            cout << "ERROR! blank frame grabbed\n";
             continue;
         }
+
 		Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
 		Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-		grow(img, dest, mask, Point(x, y), 100);
-		
-		gpumask = cuda::GpuMat(mask);
-		gpumask_out = cuda::GpuMat(mask);
-		cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
-		gpumask_out.download(mask_out);
+		grow(img, dest, mask, Point(x, y), 20);
+		mask = mask * 255;
+	    Mat Homo;
+		warpPerspective(img, Homo, H, img.size());
+		imshow("Mask", Homo);
 
-		cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
-		imshow("Mask output", gray);
+		gpumask_out = cuda::GpuMat(mask);
+		cuda::warpPerspective(cuda::GpuMat(mask), gpumask_out, H, mask.size());		
+		gpumask_out.download(mask);
+		imshow("Perspective", mask);
+		
+		//cv::threshold(mask, binary, 150,255,THRESH_BINARY);
+		binary = mask;
+		imshow("Mask output", binary);
+		waitKey(10);
 
 		int val=0;
-		for (int x = 0; x < gray.rows; x++)
+		for (int x = 0; x < binary.rows; x++)
 		{
-			for (int y = 0; y < gray.cols; y++)
+			for (int y = 0; y < binary.cols; y++)
 			{
-				point3d endpoint((float)x * 0.01f, (float)y * 0.01f, 0.0f);
-				val=gray.at<char>(x,y);
+				point3d endpoint((float)x * 0.01f* ppcm_width, (float)y * 0.01f * ppcm_height, 0.0f);
+				val=binary.at<char>(x,y);
 				//cout<<val <<" x " << x<<" y: "<<y<<"\t";
 				//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
 				if (val<0){
