@@ -20,6 +20,9 @@ find_package(catkin REQUIRED COMPONENTS
 #  core_map_representation_interface
   pcl_conversions
   pcl_ros
+  sensor_msgs
+  image_transport
+  cv_bridge
 )
 
 find_package(octomap REQUIRED)

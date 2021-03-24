@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 		{
 			for (int y = 0; y < binary.cols; y++)
 			{
-				point3d endpoint((float)x * 0.01f* ppcm_width, (float)y * 0.01f * ppcm_height, 0.0f);
+				octomap::point3d endpoint((float)x * 0.01f* ppcm_width, (float)y * 0.01f * ppcm_height, 0.0f);
 				val=binary.at<char>(x,y);
 				//cout<<val <<" x " << x<<" y: "<<y<<"\t";
 				//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);

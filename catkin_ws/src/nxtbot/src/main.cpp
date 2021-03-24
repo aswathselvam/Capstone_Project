@@ -12,17 +12,16 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/Int8.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+
 
 
 
 #include <cassert>
 #include <vector>
 #include <stack>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/opencv.hpp>
-#include <opencv2/core.hpp>
 
 #include "octomap_header.h"
 #include "image_to_grid.h"
@@ -97,7 +96,10 @@ const Point PointShift2D[8] = {
 	Point(0, 1),
 	Point(1, 1)
 };
-Mat HomographyMatrix;
+cv::Mat_<double> HomographyMatrix(3,3);
+cuda::GpuMat gpumask_out;
+const double PPCM_WIDTH = 0.0377622, PPCM_HEIGHT=0.0487805;
+
 
 /*
 Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
@@ -197,69 +199,55 @@ void grow(cv::Mat& src, cv::Mat& dest, cv::Mat& mask, cv::Point seed, int thresh
 		}
 	}
 }
-/*
-void imageCallback(const sensor_msgs::ImageConstPtr& msg){
 
-	cv::Mat dImg =  cv_ptr->image;
-    double min = 0;
-    double max = 1000;
-	cv::Mat img_scaled_8u;
-	cv::Mat(cv_ptr->image-min).convertTo(img_scaled_8u, CV_8UC1, 255. / (max - min));
-	cv::cvtColor(img_scaled_8u, dImg, CV_GRAY2RGB);
+void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
+    cv_bridge::CvImagePtr cv_ptr;
+    try
+    {
+      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
 
-	int min_region_area = int(min_region_area_factor * img.cols * img.rows);
-	uchar padding = 1;
+    // Update GUI Window
+    cv::imshow("OPENCV_WINDOW", cv_ptr->image);
+	Mat img = cv_ptr->image;
 	Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
 	Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-	if (dest.at<uchar>(Point(x, y)) == 0) {
-		grow(img, dest, mask, Point(x, y), 200);
+	grow(img, dest, mask, Point(x, y), 20);
+	mask = mask * 255;
+	Mat Homo;
+	warpPerspective(img, Homo, HomographyMatrix, img.size());
+	imshow("Mask", Homo);
 
-		int mask_area = (int)sum(mask).val[0];
-		if (mask_area > min_region_area) {
-			dest = dest + mask * padding;
-			mask = mask * 255;
-			imshow("mask", mask);
-			//waitKey(0);
-			cout << "Mask.size() " << mask.size() << endl;
-			if (++padding > max_region_num) { cout << "run out of max_region"; return -1; }
-		}
-		else dest = dest + mask * 255;
-		//mask -= mask;
-		}
+	gpumask_out = cuda::GpuMat(mask);
+	cuda::warpPerspective(cuda::GpuMat(mask), gpumask_out, HomographyMatrix, mask.size());		
+	gpumask_out.download(mask);
+	imshow("Perspective", mask);
+	waitKey(10);
 
-		cuda::GpuMat gpumask = cuda::GpuMat(mask);
-		cuda::GpuMat gpumask_out = cuda::GpuMat(mask);
-		cuda::warpPerspective(gpumask, gpumask_out, H, mask_out.size());
-
-		gpuim_out.download(im_out);
-		gpumask_out.download(mask_out);
-
-		Mat outImg = Mat::zeros(100, 100, CV_8UC1);
-		//cv::resize(mask_out, outImg, cv::Size(100,100));
-		Mat gray;
-		cv::threshold(mask_out, gray, 1,255,THRESH_BINARY);
-
-
-		int val=0;
-		for (int x = 0; x < gray.rows; x++)
+	int val=0;
+	for (int x = 0; x < mask.rows; x++)
+	{
+		for (int y = 0; y < mask.cols; y++)
 		{
-			for (int y = 0; y < gray.cols; y++)
-			{
-				point3d endpoint((float)x * 0.01f, (float)y * 0.01f, 0.0f);
-				val=gray.at<char>(x,y);
-				//cout<<val <<" x " << x<<" y: "<<y<<"\t";
-				//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
-				if (val<0){
-					tree.updateNode(endpoint, false); // integrate 'occupied' measurement
-				}else{
-					tree.updateNode(endpoint, true); // integrate 'occupied' measurement
-				}
+			octomap::point3d endpoint((float)x * 0.01f* PPCM_WIDTH, (float)y * 0.01f * PPCM_HEIGHT, 0.0f);
+			val=mask.at<char>(x,y);
+			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
+			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
+			if (val<0){
+				my_octree->updateNode(endpoint, false); // integrate 'occupied' measurement
+			}else{
+				my_octree->updateNode(endpoint, true); // integrate 'occupied' measurement
 			}
 		}
+	}
 
 }
-*/
 
 
 bool isStateValid(const ob::State *state){
@@ -289,16 +277,6 @@ void plan()
 
     // set the bounds for the R^3 part of SE(3)
 	space->as<ob::RealVectorStateSpace>()->setBounds(-50, 50);
-    // bounds.setLow(-1);
-    // bounds.setHigh(1);
-	//bounds.setLow(0,-30);
-	//bounds.setHigh(0,30);
-	//bounds.setLow(1,-30);
-	//bounds.setHigh(1,30);
-	//bounds.setLow(2,-1);
-	//bounds.setHigh(2,1);
-
-	//space->as<ob::SE3StateSpace>()->setBounds(bounds);
 
     // construct an instance of  space information from this state space
 	ob::SpaceInformationPtr si(new ob::SpaceInformation(space));
@@ -459,6 +437,10 @@ void path_follower(){
 	pub_drive_motor.publish(msg);
 }
 
+void cameraCallback(){
+
+}
+
 void refresh_Xt(Eigen::MatrixXd *dx) {
 	*dx<< driveDist*cos(delta+theta),
 		driveDist*sin(delta+theta),
@@ -523,16 +505,9 @@ int main(int argc, char** argv) {
 	0,1,0,
 	0,0,1;
 
-	cv::Mat_<double> H(3,3);
-	H<< -0.4329863893783613, -5.854818923942802, 1512.014098472485,
-	-0.08703559309736916, -6.912913870558576, 1819.452587986193,
-	 -7.955721489704677e-05, -0.004179839334454694, 1;
-
-/*
-Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
- -0.08703559309736916, -6.912913870558576, 1819.452587986193;
- -7.955721489704677e-05, -0.004179839334454694, 1];
-*/
+	HomographyMatrix<< -0.3533094995479479, -1.770444793641235, 557.3953069956937,
+ 	0.1624698020692046, -3.595786418237763, 1115.419594647802,
+	0.0002770977906833813, -0.00456378934828412, 1;
 
 
 	std::string fixed_frame = "my_frame";
@@ -542,8 +517,9 @@ Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
 	ros::NodeHandle n;
 	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 3, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 3, driveCallback);
-	ros::Subscriber sub = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
+	ros::Subscriber subOrbSlamPose = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
 	ros::Subscriber subOctomap = n.subscribe("my_octomap",1, octomapCallback);
+	ros::Subscriber subCamera = n.subscribe("camera/image_raw",1, cameraCallback);
 
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
