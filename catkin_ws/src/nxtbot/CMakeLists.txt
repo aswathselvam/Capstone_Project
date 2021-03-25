@@ -31,7 +31,7 @@ find_package(fcl REQUIRED)
 
 roslaunch_add_file_check(launch)
 
-find_package(OpenCV)
+find_package(OpenCV 4.4.0 REQUIRED)
 
 find_package(Eigen3 REQUIRED)
 

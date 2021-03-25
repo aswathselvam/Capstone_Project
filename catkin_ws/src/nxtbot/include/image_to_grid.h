@@ -6,6 +6,4 @@
 #include <opencv4/opencv2/opencv.hpp>
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/core/cuda.hpp>
-//#include <cuda_runtime.h>
-//#include <cuda_profiler_api.h>
 #include <opencv4/opencv2/cudawarping.hpp>

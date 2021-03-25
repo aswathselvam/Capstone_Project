@@ -1,5 +1,3 @@
-#include <iostream>
-#include <cmath>
 #include <ros/ros.h>
 #include <std_msgs/Int16.h>
 #include <visualization_msgs/Marker.h>
@@ -18,10 +16,12 @@
 
 
 
-
+#include <iostream>
+#include <cmath>
 #include <cassert>
 #include <vector>
 #include <stack>
+#include <array> 
 
 #include "octomap_header.h"
 #include "image_to_grid.h"
@@ -56,11 +56,10 @@ Eigen::MatrixXd Et_1(3, 3);			//Previous Covariance matrix
 Eigen::MatrixXd E_control(2, 2);	//Covariance matrix for actuator noise 
 Eigen::MatrixXd Rt(3,3);			//Covariance matrix for sensor noise
 
-//float Kt =0;
-Eigen::MatrixXd Kt(1, 1);			//Kalman gain
+Eigen::MatrixXd Kt(3,3);			//Kalman gain
 Eigen::MatrixXd ht(3, 1);			//Observation or true state matrix
 Eigen::MatrixXd Ht(3, 3);			//Observation or true state matrix
-Eigen::MatrixXd Q(3, 1);			//Observation or true state matrix
+Eigen::MatrixXd Q(3, 3);			//Observation or true state matrix
 Eigen::MatrixXd Xt(3, 1);			//Observation or true state matrix
 Eigen::MatrixXd Zt(3, 1);			//Observation or true state matrix
 Eigen::MatrixXd I(3, 3);			//Observation or true state matrix
@@ -72,15 +71,17 @@ void refresh_Vt(Eigen::MatrixXd* Vt);
 
 void path_follower();
 
-geometry_msgs::PoseWithCovarianceStamped pose;
+geometry_msgs::PoseWithCovarianceStamped poseWithCovar;
 ros::Publisher pub_drive_motor;
 ros::Publisher pub_steer_motor;
-std_msgs::Int16 msg;
+std_msgs::Int16 Int16msg;
 
 octomap::AbstractOcTree* my_tree; 
 octomap::OcTree *my_octree;
 Point dest_point;
 Point next_node;
+ros::Publisher pub_octomap;
+octomap_msgs::Octomap myoctomap_msg;
 
 Point pt(-1, -1);
 int threshold = 200;
@@ -100,12 +101,13 @@ cv::Mat_<double> HomographyMatrix(3,3);
 cuda::GpuMat gpumask_out;
 const double PPCM_WIDTH = 0.0377622, PPCM_HEIGHT=0.0487805;
 
-
-/*
-Mat H=[-0.4329863893783613, -5.854818923942802, 1512.014098472485;
- -0.08703559309736916, -6.912913870558576, 1819.452587986193;
- -7.955721489704677e-05, -0.004179839334454694, 1];
-*/
+std::string fixed_frame;
+double orbSlamPoseScale=0;
+double initial_pose[3];
+double final_pose[3];
+double displacement_dist=0;
+bool sent_move_command;
+bool moved=false;
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -119,17 +121,22 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	fullDist = 2.0 * RADIUS * (RAD_PER_TICK) * (msg->data);
 	driveDist = fullDist - prevDist;
 	prevDist = fullDist;
-	
+	if(sent_move_command && displacement_dist<10){
+		displacement_dist+=driveDist;
+	}else if(displacement_dist>10){
+		sent_move_command=false;
+		moved=true;
+	}
 	x = g(0,0);
 	y = g(1, 0);
 	theta = g(2, 0);
 	refresh_Xt(&dx);
 	refresh_Gt(&Gt);
-	refresh_Gt(&Vt);
+	refresh_Vt(&Vt);
 
 	g = Xt_1 + dx;
 		
-	cout<<Et<<endl<<endl;
+	//cout<<Et<<endl<<endl;
 	Rt = Vt * E_control * Vt.transpose();
 	//cout<<"Rt "<<endl<<Rt<<endl<<endl;
 	//Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
@@ -142,20 +149,44 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	Et_1 = Et_pred;
 	//}
 	Xt_1 = g;
-	
 }
 
 void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
-	ht(0,0)= msg->pose.position.x;
-	ht(1,0)= msg->pose.position.y;
+	
+	if(orbSlamPoseScale==0 && !sent_move_command){
+		
+		initial_pose[0]=msg->pose.position.x;
+		initial_pose[1]=msg->pose.position.y;
+		initial_pose[2]=msg->pose.position.z;
+		Int16msg.data = 0;
+		pub_steer_motor.publish(Int16msg);
+		int xx = (10 / 2*M_PI*RADIUS) * TICKS;
+		Int16msg.data = xx;
+		pub_drive_motor.publish(Int16msg);
+		sent_move_command=true;
+	}else if(moved){
+		final_pose[0] = msg->pose.position.x;
+		final_pose[1] = msg->pose.position.y;
+		final_pose[2] = msg->pose.position.z;
+		float slam_mag= std::sqrt( std::pow(static_cast<float>(final_pose[0]-initial_pose[0]),2) + std::pow(static_cast<float>(final_pose[1]-initial_pose[1]),2) );
+		orbSlamPoseScale = 10/slam_mag;
+		ROS_ERROR_STREAM( "SLAM orbSlamPoseScale: " << orbSlamPoseScale );
+
+	}
+
+	ht(0,0)= msg->pose.position.x * orbSlamPoseScale;
+	ht(1,0)= msg->pose.position.y * orbSlamPoseScale;
+	ROS_ERROR_STREAM( "SLAM ht(0,0): " << ht(0,0) );
+	ROS_ERROR_STREAM( "SLAM ht(1,0): " << ht(1,0) );
+
 	//double z= msg->pose.position.z;
 	tf::Quaternion q(msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z, msg->pose.orientation.w);
 	tf::Matrix3x3 m(q);
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
 	ht(2,0)= yaw;
-
-    std::cout<< x<<std::endl;
+	
+    //std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
 	Xt=g + Kt*(ht-g);
 	Et=(I-Kt*Ht)*Et_pred;
@@ -204,7 +235,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
     cv_bridge::CvImagePtr cv_ptr;
     try
     {
-      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::TYPE_8UC3);
     }
     catch (cv_bridge::Exception& e)
     {
@@ -213,7 +244,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
     }
 
     // Update GUI Window
-    cv::imshow("OPENCV_WINDOW", cv_ptr->image);
+    //cv::imshow("OPENCV_WINDOW", cv_ptr->image);
 	Mat img = cv_ptr->image;
 	Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
 	Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
@@ -225,10 +256,11 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	imshow("Mask", Homo);
 
 	gpumask_out = cuda::GpuMat(mask);
-	cuda::warpPerspective(cuda::GpuMat(mask), gpumask_out, HomographyMatrix, mask.size());		
+	cuda::GpuMat maskk = cuda::GpuMat(mask);
+	cuda::warpPerspective(maskk, gpumask_out, HomographyMatrix, mask.size());		
 	gpumask_out.download(mask);
 	imshow("Perspective", mask);
-	waitKey(10);
+	waitKey(1);
 
 
 	int val=0;
@@ -254,6 +286,11 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 				my_octree->updateNode(endpoint, true); // integrate 'occupied' measurement
 			}
 		}
+	}
+
+	if(octomap_msgs::binaryMapToMsg(*my_octree, myoctomap_msg)|| 1==1){
+			myoctomap_msg.header.stamp = ros::Time::now();
+			pub_octomap.publish(myoctomap_msg);
 	}
 
 }
@@ -368,7 +405,7 @@ void plan()
 			}
 
 
-			marker.header.frame_id = "map";
+			marker.header.frame_id = fixed_frame;
 			marker.header.stamp = ros::Time();
 			marker.ns = "path";
 			marker.id = idx;
@@ -433,21 +470,16 @@ void path_follower(){
 	
 	float drive_rad = ld*alpha/sin(alpha);
 	int drive_ticks = drive_rad * RADIUS * 360 / M_PI ; 
-
 	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
 		return ;
 	}
 
-	msg.data = steer_ticks;
-	pub_steer_motor.publish(msg);
+	Int16msg.data = steer_ticks;
+	pub_steer_motor.publish(Int16msg);
 	
-	msg.data = drive_ticks;
-	pub_drive_motor.publish(msg);
-}
-
-void cameraCallback(){
-
+	Int16msg.data = drive_ticks;
+	pub_drive_motor.publish(Int16msg);
 }
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
@@ -481,12 +513,16 @@ int main(int argc, char** argv) {
 	theta = (float) M_PI;
 	delta = (float) M_PI;
 
+	Xt_1<<0,
+	0,
+	0;
+
 	dx << 0, 
 		0, 
 		0;
 
-	const float SIGMA_DIRVEDIST=0.001;
-	const float SIGMA_DELTA=0.001;
+	const float SIGMA_DIRVEDIST=0.05; //5cms
+	const float SIGMA_DELTA=0.01; //0.01 radians
 
 
 	E_control << SIGMA_DIRVEDIST, 0,
@@ -504,8 +540,6 @@ int main(int argc, char** argv) {
 	0,10,0,
 	0,0,2.13;
 
-	Kt<<0;
-
 	Ht<<1,0,0,
 	0,1,0,
 	0,0,1;
@@ -514,12 +548,16 @@ int main(int argc, char** argv) {
 	0,1,0,
 	0,0,1;
 
+	Q<<1,0,0,
+	0,1,0,
+	0,0,1;
+
 	HomographyMatrix<< -0.3533094995479479, -1.770444793641235, 557.3953069956937,
  	0.1624698020692046, -3.595786418237763, 1115.419594647802,
 	0.0002770977906833813, -0.00456378934828412, 1;
 
 
-	std::string fixed_frame = "my_frame";
+	fixed_frame= "my_frame";
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
@@ -527,12 +565,14 @@ int main(int argc, char** argv) {
 	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 3, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 3, driveCallback);
 	ros::Subscriber subOrbSlamPose = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
-	ros::Subscriber subOctomap = n.subscribe("my_octomap",1, octomapCallback);
+	//ros::Subscriber subOctomap = n.subscribe("my_octomap",1, octomapCallback);
 	ros::Subscriber subCamera = n.subscribe("camera/image_raw",1, cameraCallback);
 
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
-	
+	pub_octomap = n.advertise<octomap_msgs::Octomap>("my_octomap", 1);
+	myoctomap_msg.header.frame_id = fixed_frame;
+
 	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
 	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",0);
 	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",0);
@@ -541,9 +581,9 @@ int main(int argc, char** argv) {
 	traj_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",10);
 	std::cout << "OMPL version: " << OMPL_VERSION << std::endl;
 
-    pose.header.frame_id = fixed_frame;
+    poseWithCovar.header.frame_id = fixed_frame;
 
-	ros::Rate loop_rate(5);
+	ros::Rate loop_rate(1);
 
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
@@ -597,12 +637,12 @@ int main(int argc, char** argv) {
 	marker_arrow.scale.z = 1.0;
 
 	//string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
-	string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
-	Mat img = imread(path);
-	Size sz = img.size();
-	cout << "Size of input image: " << img.size() << endl;
+	//string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
+	//Mat img = imread(path);
+	//Size sz = img.size();
+	//cout << "Size of input image: " << img.size() << endl;
 	//imshow("Input image", img);
-	//#waitKey(0);
+	//waitKey(0);
 
 
 	int count = 0;
@@ -633,24 +673,24 @@ int main(int argc, char** argv) {
 		marker_arrow_pub.publish(marker_arrow);
 
 
-		pose.header.stamp = ros::Time::now();
+		poseWithCovar.header.stamp = ros::Time::now();
 
 		// set x,y coord
-		pose.pose.pose.position.x = g(0,0)/100;
-		pose.pose.pose.position.y = g(1,0)/100;
-		pose.pose.pose.position.z = 0.0;
+		poseWithCovar.pose.pose.position.x = g(0,0)/100;
+		poseWithCovar.pose.pose.position.y = g(1,0)/100;
+		poseWithCovar.pose.pose.position.z = 0.0;
 
 		// set theta
 		tf::Quaternion quat;
 		quat.setRPY(0.0, 0.0, g(2,0));
-		tf::quaternionTFToMsg(quat, pose.pose.pose.orientation);
-		pose.pose.covariance[6*0+0] = Et(1,1)/100;
-		pose.pose.covariance[6*1+1] = Et(0,0)/100;
-		pose.pose.covariance[6*5+5] = Et(2,2);
+		tf::quaternionTFToMsg(quat, poseWithCovar.pose.pose.orientation);
+		poseWithCovar.pose.covariance[6*0+0] = Et_1(1,1)/100; //Use Et for current covariance matrix
+		poseWithCovar.pose.covariance[6*1+1] = Et_1(0,0)/100;
+		poseWithCovar.pose.covariance[6*5+5] = Et_1(2,2);
 
 		// publish
 		//ROS_INFO("x: %f, y: %f, z: 0.0, theta: %f",x,y,Et(1,1));
-		pub_pose.publish(pose);
+		pub_pose.publish(poseWithCovar);
 
 		ros::spinOnce();
 		loop_rate.sleep();

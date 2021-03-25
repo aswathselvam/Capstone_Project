@@ -1,7 +1,9 @@
 <launch>
 <node pkg="nxtbot" type="nxt_pub.py"  name="nxt_pub" />
+<!-- rosrun nxtbot nxt_pub.py -->
+
 <node pkg="nxtbot" type="main" name="main" />
-<node pkg="nxtbot" type="image_to_grid" name="image_to_grid" />
+<!-- <node pkg="nxtbot" type="image_to_grid" name="image_to_grid" /> -->
 
 <include file="$(find nxtbot)/launch/utils.launch" />
 <!-- roslaunch nxtbot utils.launch -->

@@ -49,10 +49,10 @@ def talker():
     pubDrive = rospy.Publisher('nxt/odo_drive', Int16, queue_size=3)
     
     rospy.Subscriber("cmd_vel", Twist, moveRobot,queue_size=1)
-    rospy.Subscriber("nxt/steer_motor", Twist, steer,queue_size=1)
-    rospy.Subscriber("nxt/drive_motor", Twist, drive,queue_size=1)
+    rospy.Subscriber("nxt/steer_motor", Int16, steer,queue_size=1)
+    rospy.Subscriber("nxt/drive_motor", Int16, drive,queue_size=1)
 
-    rospy.init_node('nxt_controller', anonymous=True)
+    rospy.init_node('nxt_pub', anonymous=True)
     rate = rospy.Rate(1) # 80hz
     while not rospy.is_shutdown():
         pubSteer.publish(-1*motorSteer.get_tacho().block_tacho_count)
