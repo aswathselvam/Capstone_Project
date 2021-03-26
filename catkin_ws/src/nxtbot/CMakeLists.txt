@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
+set (CMAKE_CXX_STANDARD 11)
+
 project(nxtbot)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -31,9 +33,12 @@ find_package(fcl REQUIRED)
 
 roslaunch_add_file_check(launch)
 
-find_package(OpenCV 4.4.0 REQUIRED)
+find_package(OpenCV 4.4.0 EXACT REQUIRED)
 
 find_package(Eigen3 REQUIRED)
+
+#list(APPEND CMAKE_PREFIX_PATH "/home/aswath/Downloads/vision_opencv/")
+#find_package(cv_bridge)
 
 #[[
 
@@ -143,7 +148,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES nxtbot
 #  CATKIN_DEPENDS roscpp rospy std_msgs roslaunch
-#  DEPENDS system_lib
+#  DEPENDS OpenCV
 )
 
 if(Eigen_FOUND)
@@ -163,6 +168,7 @@ endif()
 ## Your package locations should be listed before other locations
 include_directories(
   include
+#  /home/aswath/Downloads/vision_opencv/cv_bridge/include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}

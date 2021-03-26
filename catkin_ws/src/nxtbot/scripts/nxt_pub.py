@@ -13,6 +13,9 @@ brick = nxt.locator.find_one_brick(debug=True)
 
 motorSteer = nxt.Motor(brick, nxt.PORT_C)
 motorDrive = nxt.Motor(brick, nxt.PORT_B)
+stackSteer = []
+stackDrive = 0
+frontback=1
 
 #motorDrive.run()
 motorDrive.weak_turn(power=50,tacho_units=20)
@@ -37,11 +40,14 @@ def moveRobot(msg):
     #motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
 
 def steer(msg):
-    motorSteer.weak_turn(power=60,tacho_units=msg.data)
+    stackSteer.append(msg.data)
 
 
 def drive(msg):
-    motorDrive.weak_turn(power=50,tacho_units=msg.data)
+    stackDrive=msg.data
+    frontback=1 if stackDrive>0 else -1 : 
+
+    print(msg.data)
 
 
 def talker():
@@ -54,9 +60,20 @@ def talker():
 
     rospy.init_node('nxt_pub', anonymous=True)
     rate = rospy.Rate(1) # 80hz
+
+    prevstackSteer=0
     while not rospy.is_shutdown():
         pubSteer.publish(-1*motorSteer.get_tacho().block_tacho_count)
         pubDrive.publish(motorDrive.get_tacho().block_tacho_count)
+
+        if (len(stackSteer)>0):
+            motorSteer.weak_turn(power=50,tacho_units=stackSteer[0])
+            stackSteer.pop()
+
+        if abs(stackDrive)>10:
+            motorDrive.weak_turn(power=50,tacho_units=stackDrive)
+            stackDrive=stackDrive + frontback* 10
+
         rate.sleep()
 
 if __name__ == '__main__':

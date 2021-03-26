@@ -11,7 +11,6 @@
 #include <std_msgs/Int8.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/image_encodings.h>
-#include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 
 
@@ -25,6 +24,7 @@
 
 #include "octomap_header.h"
 #include "image_to_grid.h"
+#include <cv_bridge/cv_bridge.h>
 
 using namespace std;
 using namespace cv;
@@ -77,7 +77,7 @@ ros::Publisher pub_steer_motor;
 std_msgs::Int16 Int16msg;
 
 octomap::AbstractOcTree* my_tree; 
-octomap::OcTree *my_octree;
+octomap::OcTree my_octree(0.01);
 Point dest_point;
 Point next_node;
 ros::Publisher pub_octomap;
@@ -158,9 +158,9 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		initial_pose[0]=msg->pose.position.x;
 		initial_pose[1]=msg->pose.position.y;
 		initial_pose[2]=msg->pose.position.z;
-		Int16msg.data = 0;
+		Int16msg.data = steerMiddle;
 		pub_steer_motor.publish(Int16msg);
-		int xx = (10 / 2*M_PI*RADIUS) * TICKS;
+		int xx = (10 / (2*M_PI*RADIUS)) * TICKS;
 		Int16msg.data = xx;
 		pub_drive_motor.publish(Int16msg);
 		sent_move_command=true;
@@ -172,6 +172,8 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		orbSlamPoseScale = 10/slam_mag;
 		ROS_ERROR_STREAM( "SLAM orbSlamPoseScale: " << orbSlamPoseScale );
 
+	}else{
+		return;
 	}
 
 	ht(0,0)= msg->pose.position.x * orbSlamPoseScale;
@@ -252,13 +254,14 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	grow(img, dest, mask, Point(x, y), 20);
 	mask = mask * 255;
 	Mat Homo;
-	warpPerspective(img, Homo, HomographyMatrix, img.size());
-	imshow("Mask", Homo);
-
-	gpumask_out = cuda::GpuMat(mask);
-	cuda::GpuMat maskk = cuda::GpuMat(mask);
-	cuda::warpPerspective(maskk, gpumask_out, HomographyMatrix, mask.size());		
-	gpumask_out.download(mask);
+	//warpPerspective(img, Homo, HomographyMatrix, img.size());
+	//imshow("Mask", Homo);
+	Mat original_mask=mask;
+	//gpumask_out = cuda::GpuMat(mask);
+	//cuda::GpuMat maskk = cuda::GpuMat(mask);
+	warpPerspective(mask, original_mask, HomographyMatrix, mask.size());		
+	//gpumask_out.download(mask);
+	cv::resize(original_mask, mask, cv::Size(), 0.25, 0.25);
 	imshow("Perspective", mask);
 	waitKey(1);
 
@@ -271,24 +274,24 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 			//Transform coordinate from local to global 
 			float x_;
 			float y_;
-			x_=cos(theta)*x-sin(theta)*y;
-			y_=sin(theta)*x+cos(theta)*x;
+			x_=cos(theta+M_PI)*x-sin(theta+M_PI)*y;
+			y_=sin(theta+M_PI)*x+cos(theta+M_PI)*y;
 			x_+=g(0,0);
 			y_+=g(1,0);
-
-			octomap::point3d endpoint((float)x_ * 0.01f* PPCM_WIDTH, (float)y_ * 0.01f * PPCM_HEIGHT, 0.0f);
-			val=mask.at<char>(x,y);
+			//octomap::point3d endpoint((float)x_ * 0.01f* PPCM_WIDTH, (float)y_ * 0.01f * PPCM_HEIGHT, 0.0f);
+			octomap::point3d endpoint((float)x_ * 0.01f* 1, (float)y_ * 0.01f * 1, 0.0f);
+			val=mask.at<char>((int)(x+mask.rows/2),(int)(y+mask.cols/2));
 			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
 			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
 			if (val<0){
-				my_octree->updateNode(endpoint, false); // integrate 'occupied' measurement
+				my_octree.updateNode(endpoint, false); // integrate 'occupied' measurement
 			}else{
-				my_octree->updateNode(endpoint, true); // integrate 'occupied' measurement
+				my_octree.updateNode(endpoint, true); // integrate 'occupied' measurement
 			}
 		}
 	}
 
-	if(octomap_msgs::binaryMapToMsg(*my_octree, myoctomap_msg)|| 1==1){
+	if(octomap_msgs::binaryMapToMsg(my_octree, myoctomap_msg)|| 1==1){
 			myoctomap_msg.header.stamp = ros::Time::now();
 			pub_octomap.publish(myoctomap_msg);
 	}
@@ -306,7 +309,7 @@ bool isStateValid(const ob::State *state){
 	//fcl::Vector3<double> translation(pos->values[0],pos->values[1],pos->values[2]);
 
 	octomap::point3d query(pos->values[0],pos->values[1],0);
-  	octomap::OcTreeNode *result = my_octree->search(query);
+  	octomap::OcTreeNode *result = my_octree.search(query);
 	
 	if((result != NULL) && (result->getValue() >= 0.5f)){
 		return true;
@@ -448,7 +451,7 @@ void plan()
 void octomapCallback(const octomap_msgs::OctomapConstPtr& octomap_msg){
 	//my_octree = 
 	my_tree= octomap_msgs::msgToMap(*octomap_msg);
-	my_octree = dynamic_cast <octomap::OcTree*> (my_tree);
+	//my_octree = dynamic_cast <octomap::OcTree> (my_tree);
 	plan();
 }
 
@@ -520,6 +523,8 @@ int main(int argc, char** argv) {
 	dx << 0, 
 		0, 
 		0;
+	
+	g<<0,0,0;
 
 	const float SIGMA_DIRVEDIST=0.05; //5cms
 	const float SIGMA_DELTA=0.01; //0.01 radians
