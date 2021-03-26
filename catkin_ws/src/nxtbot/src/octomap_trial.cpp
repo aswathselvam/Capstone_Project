@@ -47,7 +47,7 @@ int main(int argc, char **argv)
   }
 
   // insert some measurements of free cells
-/*
+
   for (int x = -30; x < 30; x++)
   {
     for (int y = -30; y < 30; y++)
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
   cout << "Hint: hit 'F'-key in viewer to see the freespace" << endl << endl;
 
     cout<<"Conversion successfull";
-*/
+
   ros::init(argc, argv, "octomap_trial");
   ros::NodeHandle n;
   ros::Rate loop_rate(5);

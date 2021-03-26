@@ -40,17 +40,19 @@ def moveRobot(msg):
     #motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
 
 def steer(msg):
+    global stackSteer
     stackSteer.append(msg.data)
 
 
 def drive(msg):
+    global stackDrive, frontback
     stackDrive=msg.data
-    frontback=1 if stackDrive>0 else -1 : 
-
-    print(msg.data)
+    frontback= 1 if stackDrive>0 else -1 
+    #print(msg.data)
 
 
 def talker():
+    global stackDrive, stackSteer, frontback
     pubSteer = rospy.Publisher('nxt/odo_steer', Int16, queue_size=3)
     pubDrive = rospy.Publisher('nxt/odo_drive', Int16, queue_size=3)
     
@@ -70,11 +72,11 @@ def talker():
             motorSteer.weak_turn(power=50,tacho_units=stackSteer[0])
             stackSteer.pop()
 
-        if abs(stackDrive)>10:
-            motorDrive.weak_turn(power=50,tacho_units=stackDrive)
-            stackDrive=stackDrive + frontback* 10
+        if stackDrive>10:
+            motorDrive.weak_turn(power=60,tacho_units=10*frontback)
+            stackDrive=stackDrive - 10
 
-        rate.sleep()
+        #rate.sleep()
 
 if __name__ == '__main__':
     try:

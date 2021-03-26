@@ -84,9 +84,9 @@ void mouse_callback(int event, int x, int y, int flag, void* param) {
 }
 
 int main(){
-    Mat src;
+    //Mat src;
     VideoCapture cap;
-
+/*
     cap.open("http://192.168.29.132:8080/video", cv::CAP_ANY);
     // check if we succeeded
     if (!cap.isOpened()) {
@@ -101,7 +101,8 @@ int main(){
         std::cout << "ERROR! blank frame grabbed\n";
         return 0;
     }
-
+    */
+    Mat src = cv::imread("/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg");
     std::cout<<src.rows <<" cols: " << src.cols<<std::endl;
     imshow("Src", src);
 	Mat tempImage;
@@ -109,7 +110,7 @@ int main(){
     i=0;
 	setMouseCallback("Src", mouse_callback,(void*) &src);
 	while (1) {
-        cap.read(src);
+        //cap.read(src);
 		src.copyTo(tempImage);
 		if (g_bDrawingBox)
 			DrawRectangle(tempImage, g_rectangle);

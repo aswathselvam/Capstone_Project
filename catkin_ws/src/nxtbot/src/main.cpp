@@ -75,6 +75,7 @@ geometry_msgs::PoseWithCovarianceStamped poseWithCovar;
 ros::Publisher pub_drive_motor;
 ros::Publisher pub_steer_motor;
 std_msgs::Int16 Int16msg;
+bool connection_established = false;
 
 octomap::AbstractOcTree* my_tree; 
 octomap::OcTree my_octree(0.01);
@@ -98,8 +99,13 @@ const Point PointShift2D[8] = {
 	Point(1, 1)
 };
 cv::Mat_<double> HomographyMatrix(3,3);
+Mat mask;
+Mat dest;
+Mat Homo;
 cuda::GpuMat gpumask_out;
 const double PPCM_WIDTH = 0.0377622, PPCM_HEIGHT=0.0487805;
+
+void plan();
 
 std::string fixed_frame;
 double orbSlamPoseScale=0;
@@ -117,14 +123,13 @@ void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 }
 
 void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
-
+	connection_established = true;
 	fullDist = 2.0 * RADIUS * (RAD_PER_TICK) * (msg->data);
 	driveDist = fullDist - prevDist;
 	prevDist = fullDist;
 	if(sent_move_command && displacement_dist<10){
 		displacement_dist+=driveDist;
-	}else if(displacement_dist>10){
-		sent_move_command=false;
+	}else if(orbSlamPoseScale==0){
 		moved=true;
 	}
 	x = g(0,0);
@@ -153,26 +158,27 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 
 void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	
-	if(orbSlamPoseScale==0 && !sent_move_command){
+	if(orbSlamPoseScale==0 && !sent_move_command && connection_established ){
 		
 		initial_pose[0]=msg->pose.position.x;
 		initial_pose[1]=msg->pose.position.y;
 		initial_pose[2]=msg->pose.position.z;
 		Int16msg.data = steerMiddle;
-		pub_steer_motor.publish(Int16msg);
+		//pub_steer_motor.publish(Int16msg);
 		int xx = (10 / (2*M_PI*RADIUS)) * TICKS;
 		Int16msg.data = xx;
 		pub_drive_motor.publish(Int16msg);
 		sent_move_command=true;
+		return;
 	}else if(moved){
 		final_pose[0] = msg->pose.position.x;
 		final_pose[1] = msg->pose.position.y;
 		final_pose[2] = msg->pose.position.z;
 		float slam_mag= std::sqrt( std::pow(static_cast<float>(final_pose[0]-initial_pose[0]),2) + std::pow(static_cast<float>(final_pose[1]-initial_pose[1]),2) );
 		orbSlamPoseScale = 10/slam_mag;
-		ROS_ERROR_STREAM( "SLAM orbSlamPoseScale: " << orbSlamPoseScale );
-
-	}else{
+		sent_move_command=false;
+		moved=false;
+		ROS_ERROR_STREAM("SLAM orbSlamPoseScale: " << orbSlamPoseScale );
 		return;
 	}
 
@@ -194,7 +200,7 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	Et=(I-Kt*Ht)*Et_pred;
 	Xt_1=Xt;
 	Et_1=Et;
-
+	
 }
 
 
@@ -218,7 +224,6 @@ void grow(cv::Mat& src, cv::Mat& dest, cv::Mat& mask, cv::Point seed, int thresh
 				continue;
 			}
 			else {
-
 				int delta = int(pow(src.at<cv::Vec3b>(center)[0] - src.at<cv::Vec3b>(estimating_point)[0], 2)
 					+ pow(src.at<cv::Vec3b>(center)[1] - src.at<cv::Vec3b>(estimating_point)[1], 2)
 					+ pow(src.at<cv::Vec3b>(center)[2] - src.at<cv::Vec3b>(estimating_point)[2], 2));
@@ -248,70 +253,86 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
     // Update GUI Window
     //cv::imshow("OPENCV_WINDOW", cv_ptr->image);
 	Mat img = cv_ptr->image;
-	Mat dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
-	Mat mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-	grow(img, dest, mask, Point(x, y), 20);
+	grow(img, dest, mask, Point(img.rows-10, img.cols/2), 20);
 	mask = mask * 255;
-	Mat Homo;
-	//warpPerspective(img, Homo, HomographyMatrix, img.size());
-	//imshow("Mask", Homo);
-	Mat original_mask=mask;
+	warpPerspective(img, Homo, HomographyMatrix, img.size());
+	imshow("Image", Homo);
+	Mat original_mask;
 	//gpumask_out = cuda::GpuMat(mask);
 	//cuda::GpuMat maskk = cuda::GpuMat(mask);
 	warpPerspective(mask, original_mask, HomographyMatrix, mask.size());		
 	//gpumask_out.download(mask);
 	cv::resize(original_mask, mask, cv::Size(), 0.25, 0.25);
-	imshow("Perspective", mask);
+	imshow("Perspective Mask", mask);
 	waitKey(1);
-
+	float x_;
+	float y_;
 
 	int val=0;
-	for (int x = -mask.rows/2; x < mask.rows/2; x++)
+	int min=9999,max=-9999;
+	for (int index_x = -mask.rows/2; index_x < mask.rows/2; index_x++)
 	{
-		for (int y = -mask.cols/2; y < mask.cols/2; y++)
+		for (int index_y = -mask.cols/2; index_y < mask.cols/2; index_y++)
 		{
 			//Transform coordinate from local to global 
-			float x_;
-			float y_;
-			x_=cos(theta+M_PI)*x-sin(theta+M_PI)*y;
-			y_=sin(theta+M_PI)*x+cos(theta+M_PI)*y;
+
+			x_=cos(theta+M_PI)*index_x-sin(theta+M_PI)*index_y;
+			y_=sin(theta+M_PI)*index_x+cos(theta+M_PI)*index_y;
 			x_+=g(0,0);
 			y_+=g(1,0);
 			//octomap::point3d endpoint((float)x_ * 0.01f* PPCM_WIDTH, (float)y_ * 0.01f * PPCM_HEIGHT, 0.0f);
 			octomap::point3d endpoint((float)x_ * 0.01f* 1, (float)y_ * 0.01f * 1, 0.0f);
-			val=mask.at<char>((int)(x+mask.rows/2),(int)(y+mask.cols/2));
+			val=mask.at<char>((int)(index_x+mask.rows/2),(int)(index_y+mask.cols/2));
 			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
 			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
+			//octomap::OcTreeNode *result = my_octree.search(endpoint);
+
 			if (val<0){
-				my_octree.updateNode(endpoint, false); // integrate 'occupied' measurement
+				my_octree.updateNode(endpoint, false); 
 			}else{
-				my_octree.updateNode(endpoint, true); // integrate 'occupied' measurement
+				my_octree.updateNode(endpoint, true);
 			}
+			/*
+			if(result==NULL){
+				my_octree.updateNode(endpoint, false);
+			}else{
+				if (val<0){
+					//my_octree.updateNodeLogOdds(result, -0.2);
+					my_octree.updateNode(endpoint, true); 
+
+				}else{
+					//my_octree.updateNodeLogOdds(result, 0.1);
+					my_octree.updateNode(endpoint, false);
+				}
+			}
+			*/
 		}
 	}
 
-	if(octomap_msgs::binaryMapToMsg(my_octree, myoctomap_msg)|| 1==1){
+	if(octomap_msgs::binaryMapToMsg(my_octree, myoctomap_msg)){
 			myoctomap_msg.header.stamp = ros::Time::now();
 			pub_octomap.publish(myoctomap_msg);
 	}
+	plan();
+
 
 }
 
 
 bool isStateValid(const ob::State *state){
-	// TODO: Remove this return statement
-	return true;
 
 	const ob::RealVectorStateSpace::StateType *pos = state->as<ob::RealVectorStateSpace::StateType>();
 
     // check validity of state defined by pos
 	//fcl::Vector3<double> translation(pos->values[0],pos->values[1],pos->values[2]);
 
-	octomap::point3d query(pos->values[0],pos->values[1],0);
+	octomap::point3d query(pos->values[0],pos->values[1],0.0f);
   	octomap::OcTreeNode *result = my_octree.search(query);
 	
-	if((result != NULL) && (result->getValue() >= 0.5f)){
+	if((result == NULL) || (result->getValue() <= 0.5)){
 		return true;
 	}else{
 		return false;
@@ -325,7 +346,7 @@ void plan()
 	ob::StateSpacePtr space(new ob::RealVectorStateSpace(2));
 
     // set the bounds for the R^3 part of SE(3)
-	space->as<ob::RealVectorStateSpace>()->setBounds(-50, 50);
+	space->as<ob::RealVectorStateSpace>()->setBounds(-10, 10);
 
     // construct an instance of  space information from this state space
 	ob::SpaceInformationPtr si(new ob::SpaceInformation(space));
@@ -342,8 +363,8 @@ void plan()
 	// Set our robot's goal state to be the top-right corner of the
 	// environment, or (1,1).
 	ob::ScopedState<> goal(space);
-	goal->as<ob::RealVectorStateSpace::StateType>()->values[0] = 10.0;
-	goal->as<ob::RealVectorStateSpace::StateType>()->values[1] = 20.0;
+	goal->as<ob::RealVectorStateSpace::StateType>()->values[0] = 7.0;
+	goal->as<ob::RealVectorStateSpace::StateType>()->values[1] = 5.0;
 
     // create a problem instance
 	ob::ProblemDefinitionPtr pdef(new ob::ProblemDefinition(si));
@@ -370,7 +391,7 @@ void plan()
 	pdef->print(std::cout);
 
     // attempt to solve the problem within one second of planning time
-	ob::PlannerStatus solved = planner->solve(1.0);
+	ob::PlannerStatus solved = planner->solve(3.0);
 
 
 	std::cout << "Reached 2: " << std::endl;
@@ -412,27 +433,28 @@ void plan()
 			marker.header.stamp = ros::Time();
 			marker.ns = "path";
 			marker.id = idx;
-			marker.type = visualization_msgs::Marker::CUBE;
+			marker.type = visualization_msgs::Marker::LINE_STRIP;
 			marker.action = visualization_msgs::Marker::ADD;
-			marker.pose.position.x = pos->values[0];
-			marker.pose.position.y = pos->values[1];
-			marker.pose.position.z = pos->values[2];
+			geometry_msgs::Point tmp_p;
+
+			tmp_p.x=pos->values[0];
+			tmp_p.y=pos->values[1];
+			marker.points.push_back(tmp_p);
+			marker.scale.x = 0.1;
+			marker.scale.y = 0.1;
+			marker.scale.z = 0.1;
 			marker.pose.orientation.x = 0;
 			marker.pose.orientation.y = 0;
 			marker.pose.orientation.z = 0;
 			marker.pose.orientation.w = 1;
-			marker.scale.x = 1;
-			marker.scale.y = 0.5;
-			marker.scale.z = 0.5;
 			marker.color.a = 1.0;
-			marker.color.r = 0.0;
+			marker.color.r = 1.0;
 			marker.color.g = 1.0;
 			marker.color.b = 0.0;
 			vis_pub.publish(marker);
-			ros::Duration(0.2).sleep();
+			ros::Duration(0.05).sleep();
 			std::cout << "Published marker: " << idx << std::endl;  
 		}
-		ros::Rate loop_rate(0.1);
 		/*
 		while(ros::ok){
 		traj_pub.publish(msg);
@@ -476,13 +498,14 @@ void path_follower(){
 	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
 		return ;
-	}
+	}else{
 
 	Int16msg.data = steer_ticks;
 	pub_steer_motor.publish(Int16msg);
 	
 	Int16msg.data = drive_ticks;
 	pub_drive_motor.publish(Int16msg);
+	}
 }
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
@@ -582,7 +605,7 @@ int main(int argc, char** argv) {
 	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",0);
 	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",0);
 
-	vis_pub = n.advertise<visualization_msgs::Marker>( "visualization_marker", 0 );
+	vis_pub = n.advertise<visualization_msgs::Marker>( "visualization_marker_path", 0 );
 	traj_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",10);
 	std::cout << "OMPL version: " << OMPL_VERSION << std::endl;
 
