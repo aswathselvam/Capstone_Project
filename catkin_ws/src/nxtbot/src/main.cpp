@@ -487,7 +487,7 @@ void path_follower(){
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
 	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
-	int steer_ticks =  (steer_rad / M_PI ) * (20.0/12.0) * 360.0 ; 
+	int steer_ticks =  0.45 * (steer_rad / RAD_STEER_PER_TICK ) ; 
 	
 	float drive_dist = ld*alpha/sin(alpha);
 	drive_dist = isnan(drive_dist) ? ld*1: drive_dist; 
