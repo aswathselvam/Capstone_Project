@@ -12,6 +12,7 @@
         "chrono": "cpp",
         "complex": "cpp",
         "cmath": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "*.tcc": "cpp"
     }
 }

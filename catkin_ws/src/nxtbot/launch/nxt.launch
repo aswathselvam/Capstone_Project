@@ -2,12 +2,12 @@
 <node pkg="nxtbot" type="nxt_pub.py"  name="nxt_pub" />
 <!-- rosrun nxtbot nxt_pub.py -->
 
-<node pkg="nxtbot" type="main" name="main" />
 <!-- <node pkg="nxtbot" type="image_to_grid" name="image_to_grid" /> -->
 
 <include file="$(find nxtbot)/launch/utils.launch" />
 <!-- roslaunch nxtbot utils.launch -->
-<!--
+<!-- <node pkg="nxtbot" type="main" name="main" />
+
 <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
 
 <machine

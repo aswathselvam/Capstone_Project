@@ -69,11 +69,11 @@ def talker():
         pubDrive.publish(motorDrive.get_tacho().block_tacho_count)
 
         if (len(stackSteer)>0):
-            motorSteer.weak_turn(power=50,tacho_units=stackSteer[0])
+            motorSteer.weak_turn(power=60,tacho_units=stackSteer[0])
             stackSteer.pop()
 
         if stackDrive>10:
-            motorDrive.weak_turn(power=60,tacho_units=10*frontback)
+            motorDrive.weak_turn(power=70,tacho_units=10*frontback)
             stackDrive=stackDrive - 10
 
         #rate.sleep()

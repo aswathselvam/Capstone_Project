@@ -37,12 +37,12 @@ float delta, x,y,theta;
 
 int steerMiddle;
 
-double RAD_PER_TICK;
+float RAD_PER_TICK;
 float RAD_STEER_PER_TICK;
-float RADIUS		=3;
+float RADIUS		=2;
 float TICKS			=360;
 int L 				= 10;
-int MAX_STEER_ANGLE = 80;
+int MAX_STEER_ANGLE = 75;
 
 
 Eigen::MatrixXd dx(3, 1);			//Displacement of wheels 
@@ -79,8 +79,8 @@ bool connection_established = false;
 
 octomap::AbstractOcTree* my_tree; 
 octomap::OcTree my_octree(0.01);
-Point dest_point;
-Point next_node;
+Point2f dest_point;
+Point2f next_node;
 ros::Publisher pub_octomap;
 octomap_msgs::Octomap myoctomap_msg;
 
@@ -114,6 +114,7 @@ double final_pose[3];
 double displacement_dist=0;
 bool sent_move_command;
 bool moved=false;
+bool hasAplan=false;
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
@@ -135,12 +136,19 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	x = g(0,0);
 	y = g(1, 0);
 	theta = g(2, 0);
+	
 	refresh_Xt(&dx);
 	refresh_Gt(&Gt);
 	refresh_Vt(&Vt);
 
 	g = Xt_1 + dx;
-		
+	tf::Quaternion thetaQuart;
+	thetaQuart.setRPY(0,0,g(2,0));
+	tf::Matrix3x3 m(thetaQuart);
+	double roll, pitch, yaw;
+	m.getRPY(roll, pitch, yaw);
+	g(2,0)= yaw;
+
 	//cout<<Et<<endl<<endl;
 	Rt = Vt * E_control * Vt.transpose();
 	//cout<<"Rt "<<endl<<Rt<<endl<<endl;
@@ -181,9 +189,10 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		ROS_ERROR_STREAM("SLAM orbSlamPoseScale: " << orbSlamPoseScale );
 		return;
 	}
+	
 
-	ht(0,0)= msg->pose.position.x * orbSlamPoseScale;
-	ht(1,0)= msg->pose.position.y * orbSlamPoseScale;
+	ht(0,0)= msg->pose.position.x * 1;//orbSlamPoseScale;
+	ht(1,0)= msg->pose.position.y * 1; //orbSlamPoseScale;
 	ROS_ERROR_STREAM( "SLAM ht(0,0): " << ht(0,0) );
 	ROS_ERROR_STREAM( "SLAM ht(1,0): " << ht(1,0) );
 
@@ -196,10 +205,10 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	
     //std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
-	Xt=g + Kt*(ht-g);
-	Et=(I-Kt*Ht)*Et_pred;
-	Xt_1=Xt;
-	Et_1=Et;
+	//Xt=g + Kt*(ht-g);
+	//Et=(I-Kt*Ht)*Et_pred;
+	//Xt_1=Xt;
+	//Et_1=Et;
 	
 }
 
@@ -256,7 +265,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
 	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
-	grow(img, dest, mask, Point(img.rows-10, img.cols/2), 20);
+	grow(img, dest, mask, Point(img.cols/2, img.rows-10), 20);
 	mask = mask * 255;
 	warpPerspective(img, Homo, HomographyMatrix, img.size());
 	imshow("Image", Homo);
@@ -270,8 +279,8 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	waitKey(1);
 	float x_;
 	float y_;
-
 	int val=0;
+	
 	int min=9999,max=-9999;
 	for (int index_x = -mask.rows/2; index_x < mask.rows/2; index_x++)
 	{
@@ -286,37 +295,24 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 			//octomap::point3d endpoint((float)x_ * 0.01f* PPCM_WIDTH, (float)y_ * 0.01f * PPCM_HEIGHT, 0.0f);
 			octomap::point3d endpoint((float)x_ * 0.01f* 1, (float)y_ * 0.01f * 1, 0.0f);
 			val=mask.at<char>((int)(index_x+mask.rows/2),(int)(index_y+mask.cols/2));
-			//cout<<val <<" x " << x<<" y: "<<y<<"\t";
-			//Vec3b bgrPixel = mask_out.at<Vec3b>(x, y);
-			//octomap::OcTreeNode *result = my_octree.search(endpoint);
 
 			if (val<0){
 				my_octree.updateNode(endpoint, false); 
 			}else{
 				my_octree.updateNode(endpoint, true);
 			}
-			/*
-			if(result==NULL){
-				my_octree.updateNode(endpoint, false);
-			}else{
-				if (val<0){
-					//my_octree.updateNodeLogOdds(result, -0.2);
-					my_octree.updateNode(endpoint, true); 
 
-				}else{
-					//my_octree.updateNodeLogOdds(result, 0.1);
-					my_octree.updateNode(endpoint, false);
-				}
-			}
-			*/
 		}
 	}
+	
 
 	if(octomap_msgs::binaryMapToMsg(my_octree, myoctomap_msg)){
 			myoctomap_msg.header.stamp = ros::Time::now();
 			pub_octomap.publish(myoctomap_msg);
 	}
-	plan();
+	if(!hasAplan){
+		plan();
+	}
 
 
 }
@@ -391,7 +387,7 @@ void plan()
 	pdef->print(std::cout);
 
     // attempt to solve the problem within one second of planning time
-	ob::PlannerStatus solved = planner->solve(3.0);
+	ob::PlannerStatus solved = planner->solve(1.0);
 
 
 	std::cout << "Reached 2: " << std::endl;
@@ -482,29 +478,33 @@ void octomapCallback(const octomap_msgs::OctomapConstPtr& octomap_msg){
 void path_follower(){
 
 	float x1=g(0,0);
-	float x2=next_node.x;
+	float x2=next_node.x*100;
 	
 	float y1=g(1,0);
-	float y2=next_node.y;
+	float y2=next_node.y*100;
 
 	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
 	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
-	int steer_ticks =  steer_rad * 360 / M_PI ; 
+	int steer_ticks =  (steer_rad / M_PI ) * (20.0/12.0) * 360.0 ; 
 	
-	float drive_rad = ld*alpha/sin(alpha);
-	int drive_ticks = drive_rad * RADIUS * 360 / M_PI ; 
+	float drive_dist = ld*alpha/sin(alpha);
+	drive_dist = isnan(drive_dist) ? ld*1: drive_dist; 
+	float drive_rad = drive_dist / (2* M_PI * RADIUS) ;
+	int drive_ticks = drive_rad * TICKS ;
 	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
 		return ;
 	}else{
-
-	Int16msg.data = steer_ticks;
-	pub_steer_motor.publish(Int16msg);
+		
+	Int16msg.data = steerMiddle + steer_ticks;
+	//pub_steer_motor.publish(Int16msg);
 	
 	Int16msg.data = drive_ticks;
-	pub_drive_motor.publish(Int16msg);
+	//pub_drive_motor.publish(Int16msg);
+	
+	hasAplan=true;
 	}
 }
 
@@ -531,12 +531,12 @@ void refresh_Vt(Eigen::MatrixXd* Vt) {
 
 int main(int argc, char** argv) {
 
-	RAD_PER_TICK = (float) ( M_PI / TICKS);
-	RAD_STEER_PER_TICK = M_PI/TICKS;
+	RAD_PER_TICK = ( M_PI / TICKS);
+	RAD_STEER_PER_TICK =  (12.0/20.0) *M_PI/TICKS;
 	steerMiddle = 999;
 	x = 0;
 	y = 0;
-	theta = (float) M_PI;
+	theta = 0; (float) M_PI;
 	delta = (float) M_PI;
 
 	Xt_1<<0,
@@ -584,6 +584,10 @@ int main(int argc, char** argv) {
  	0.1624698020692046, -3.595786418237763, 1115.419594647802,
 	0.0002770977906833813, -0.00456378934828412, 1;
 
+	next_node.x=0.10;
+	next_node.y=0.10;
+	path_follower();
+	
 
 	fixed_frame= "my_frame";
 
@@ -686,14 +690,14 @@ int main(int argc, char** argv) {
 		marker_cube.pose.position.y = g(1,0)/100;
 		marker_cube.pose.position.z = 0;
 
-		marker_arrow.pose.position.x = g(0, 0)/100+cos(theta)*1;
-		marker_arrow.pose.position.y = g(1, 0)/100+sin(theta)*1;
+		marker_arrow.pose.position.x = g(0, 0)/100+cos(g(2,0))*1;
+		marker_arrow.pose.position.y = g(1, 0)/100+sin(g(2,0))*1;
 		marker_arrow.pose.position.z = 0;
 		
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
 		
-		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta);
-		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, theta+delta);
+		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, g(2,0));
+		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, g(2,0)+delta);
 
 
 		// Publish the marker
