@@ -142,12 +142,13 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	refresh_Vt(&Vt);
 
 	g = Xt_1 + dx;
+
 	tf::Quaternion thetaQuart;
-	thetaQuart.setRPY(0,0,g(2,0));
+	thetaQuart.setRPY(0,0,g(2,0)*2);
 	tf::Matrix3x3 m(thetaQuart);
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
-	g(2,0)= yaw;
+	g(2,0)= yaw/2;
 
 	//cout<<Et<<endl<<endl;
 	Rt = Vt * E_control * Vt.transpose();
@@ -201,7 +202,7 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 	tf::Matrix3x3 m(q);
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
-	ht(2,0)= yaw;
+	ht(2,0)= yaw/2;
 	
     //std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
@@ -486,6 +487,7 @@ void path_follower(){
 	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
 	float alpha= asin( (y2-y1) / ld ) - theta;
 
+	// TODO: Might need to fix this equation:
 	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
 	int steer_ticks =  0.45 * (steer_rad / RAD_STEER_PER_TICK ) ; 
 	
@@ -532,7 +534,7 @@ void refresh_Vt(Eigen::MatrixXd* Vt) {
 int main(int argc, char** argv) {
 
 	RAD_PER_TICK = ( M_PI / TICKS);
-	RAD_STEER_PER_TICK =  (12.0/20.0) *M_PI/TICKS;
+	RAD_STEER_PER_TICK =  (M_PI/TICKS)*0.76;
 	steerMiddle = 999;
 	x = 0;
 	y = 0;
@@ -695,8 +697,25 @@ int main(int argc, char** argv) {
 		marker_arrow.pose.position.z = 0;
 		
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
-		
-		marker_cube.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, g(2,0));
+		tf::Quaternion thetaQuart;
+		for(int i =-6;i <=12;i++){
+			double roll, pitch, yaw,visYaw;
+			yaw=i*M_PI/4;
+			thetaQuart.setRPY(0,0,yaw*2);
+			tf::Matrix3x3 m(thetaQuart);
+			m.getRPY(roll, pitch, visYaw);
+			double yaw_=visYaw/2;
+			/*
+			if(yaw<0){
+				yaw=M_PI+yaw;
+			}
+			g(2,0)= yaw;
+			*/
+			marker_arrow.pose.orientation = tf::createQuaternionMsgFromYaw(visYaw);
+			marker_arrow_pub.publish(marker_arrow);
+			cout<<"some statement";
+		}
+		marker_cube.pose.orientation = tf::createQuaternionMsgFromYaw(g(2,0));
 		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, g(2,0)+delta);
 
 
