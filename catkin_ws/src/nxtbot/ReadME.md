@@ -30,3 +30,6 @@ In windows:
 1. Download opencv binaries
 2. Add opencv\build\x64\vc15\bin\ to PATH under System Variables. 
 3. Add opencv\build\x64\vc15\lib\ to PATH under System Variables.
+
+In Ubuntu: \
+Check the word document 2 and 3.
