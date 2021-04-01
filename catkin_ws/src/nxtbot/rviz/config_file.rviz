@@ -16,6 +16,7 @@ Panels:
         - /OccupancyGrid1/Status1
         - /Marker3
         - /Marker3/Status1
+        - /Marker4
       Splitter Ratio: 0.5
     Tree Height: 362
   - Class: rviz/Selection
@@ -205,6 +206,14 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /visualization_marker_slam_arrow
+      Name: Marker
+      Namespaces:
+        slam_arrow: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -233,7 +242,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 4.36252498626709
+      Distance: 3.9304001331329346
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

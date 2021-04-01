@@ -32,8 +32,8 @@ using namespace cv;
 
 //typedef std_msgs::Int16 odoint;
 
-float driveDist, fullDist, prevDist;
-float delta, x,y,theta;
+double driveDist=0, fullDist=0, prevDist=0;
+double delta, x,y,theta,thetaVis;
 
 int steerMiddle;
 
@@ -41,8 +41,8 @@ float RAD_PER_TICK;
 float RAD_STEER_PER_TICK;
 float RADIUS		=2;
 float TICKS			=360;
-int L 				= 10;
-int MAX_STEER_ANGLE = 75;
+int L 				= 16;
+int MAX_STEER_ANGLE = 65;
 
 
 Eigen::MatrixXd dx(3, 1);			//Displacement of wheels 
@@ -109,6 +109,7 @@ void plan();
 
 std::string fixed_frame;
 double orbSlamPoseScale=0;
+tf::Quaternion slamQ;
 double initial_pose[3];
 double final_pose[3];
 double displacement_dist=0;
@@ -116,26 +117,49 @@ bool sent_move_command;
 bool moved=false;
 bool hasAplan=false;
 
+double constrainRadPi(double x){
+    double y = fmod(x,2*M_PI);
+    if (y < 0)
+        y += 2.0*M_PI;
+    return y;
+}
+double constrainRadPi2(double x){
+    x = fmod(x + M_PI,2.0*M_PI);
+    if (x < 0)
+        x += 2.0*M_PI;
+    return x - M_PI;
+}
+
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
 		steerMiddle = msg->data;
 	}
-	delta = (RAD_STEER_PER_TICK) * -(steerMiddle - msg->data);
+	int steer_diff= steerMiddle - msg->data;
+	if(abs(steer_diff)<30){
+		delta = (RAD_STEER_PER_TICK) * -(0.2*steer_diff);
+	}else{
+		delta = (RAD_STEER_PER_TICK) * -(steer_diff);
+	}
 }
 
 void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
-	connection_established = true;
-	fullDist = 2.0 * RADIUS * (RAD_PER_TICK) * (msg->data);
+	if(!connection_established){
+		prevDist = RADIUS * (RAD_PER_TICK) * (msg->data);
+		connection_established = true;
+	}
+
+	fullDist = RADIUS * (RAD_PER_TICK) * (msg->data);
 	driveDist = fullDist - prevDist;
 	prevDist = fullDist;
+	
 	if(sent_move_command && displacement_dist<10){
 		displacement_dist+=driveDist;
-	}else if(orbSlamPoseScale==0){
+	
+	}
+	if(displacement_dist>10 && orbSlamPoseScale==0){
+		displacement_dist+=driveDist;
 		moved=true;
 	}
-	x = g(0,0);
-	y = g(1, 0);
-	theta = g(2, 0);
 	
 	refresh_Xt(&dx);
 	refresh_Gt(&Gt);
@@ -143,26 +167,17 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 
 	g = Xt_1 + dx;
 
-	tf::Quaternion thetaQuart;
-	thetaQuart.setRPY(0,0,g(2,0)*2);
-	tf::Matrix3x3 m(thetaQuart);
-	double roll, pitch, yaw;
-	m.getRPY(roll, pitch, yaw);
-	g(2,0)= yaw/2;
+	g(2,0)=constrainRadPi(g(2,0));
+	//thetaVis=constrainRadPi2(g(2,0));
 
-	//cout<<Et<<endl<<endl;
 	Rt = Vt * E_control * Vt.transpose();
-	//cout<<"Rt "<<endl<<Rt<<endl<<endl;
-	//Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
 	Et_pred = Gt * Et_1 * Gt.transpose() + Rt;
-	//if (Et(1,1)>20){
-	//	Et_1<<20,10,10;
-	//	10,20,10,
-	//	10,10,20;
-	//}else{
 	Et_1 = Et_pred;
-	//}
 	Xt_1 = g;
+	
+	x = g(0,0);
+	y = g(1, 0);
+	theta = g(2, 0);
 }
 
 void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
@@ -184,33 +199,43 @@ void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
 		final_pose[1] = msg->pose.position.y;
 		final_pose[2] = msg->pose.position.z;
 		float slam_mag= std::sqrt( std::pow(static_cast<float>(final_pose[0]-initial_pose[0]),2) + std::pow(static_cast<float>(final_pose[1]-initial_pose[1]),2) );
-		orbSlamPoseScale = 10/slam_mag;
+		orbSlamPoseScale = displacement_dist/slam_mag;
 		sent_move_command=false;
 		moved=false;
-		ROS_ERROR_STREAM("SLAM orbSlamPoseScale: " << orbSlamPoseScale );
+		ROS_INFO_STREAM("SLAM orbSlamPoseScale: " << orbSlamPoseScale );
 		return;
 	}
 	
 
-	ht(0,0)= msg->pose.position.x * 1;//orbSlamPoseScale;
-	ht(1,0)= msg->pose.position.y * 1; //orbSlamPoseScale;
-	ROS_ERROR_STREAM( "SLAM ht(0,0): " << ht(0,0) );
-	ROS_ERROR_STREAM( "SLAM ht(1,0): " << ht(1,0) );
+	ht(0,0)= msg->pose.position.x * orbSlamPoseScale;
+	ht(1,0)= msg->pose.position.y * orbSlamPoseScale;
+	//ROS_ERROR_STREAM( "SLAM ht(0,0): " << ht(0,0) <<endl);
+	//ROS_ERROR_STREAM( "SLAM ht(1,0): " << ht(1,0) <<endl );
 
 	//double z= msg->pose.position.z;
-	tf::Quaternion q(msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z, msg->pose.orientation.w);
-	tf::Matrix3x3 m(q);
+	slamQ.setValue(msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z, msg->pose.orientation.w);
+	tf::Matrix3x3 m(slamQ);
 	double roll, pitch, yaw;
 	m.getRPY(roll, pitch, yaw);
-	ht(2,0)= yaw/2;
-	
+	if(yaw<0){
+		yaw=2*M_PI+yaw;
+	}
+	ht(2,0)= yaw;
+	if(abs(g(2,0)-ht(2,0))>M_PI){
+		if(g(2,0)<M_PI){
+			ht(2,0)=ht(2,0)-2.0*M_PI;
+		}else{
+			ht(2,0)=ht(2,0)+2.0*M_PI;
+		}
+	}else{
+		ht(2,0)= yaw;
+	}
     //std::cout<< x<<std::endl;
 	Kt=Et_pred*Ht*(Ht*Et_pred*Ht+Q).inverse();
-	//Xt=g + Kt*(ht-g);
-	//Et=(I-Kt*Ht)*Et_pred;
-	//Xt_1=Xt;
-	//Et_1=Et;
-	
+	Xt=g + Kt*(ht-g);
+	Et=(I-Kt*Ht)*Et_pred;
+	Xt_1=Xt;
+	Et_1=Et;
 }
 
 
@@ -354,8 +379,8 @@ void plan()
 	// Set our robot's starting state to be the bottom-left corner of
 	// the environment, or (0,0).
 	ob::ScopedState<> start(space);
-	start->as<ob::RealVectorStateSpace::StateType>()->values[0] = g(0,0);
-	start->as<ob::RealVectorStateSpace::StateType>()->values[1] = g(1,0);
+	start->as<ob::RealVectorStateSpace::StateType>()->values[0] = g(0,0)/100;
+	start->as<ob::RealVectorStateSpace::StateType>()->values[1] = g(1,0)/100;
 	
 	// Set our robot's goal state to be the top-right corner of the
 	// environment, or (1,1).
@@ -511,6 +536,7 @@ void path_follower(){
 }
 
 void refresh_Xt(Eigen::MatrixXd *dx) {
+	double ccx=cos(theta);
 	*dx<< driveDist*cos(delta+theta),
 		driveDist*sin(delta+theta),
 		driveDist*sin(delta)/L;
@@ -533,12 +559,12 @@ void refresh_Vt(Eigen::MatrixXd* Vt) {
 
 int main(int argc, char** argv) {
 
-	RAD_PER_TICK = ( M_PI / TICKS);
-	RAD_STEER_PER_TICK =  (M_PI/TICKS)*0.76;
+	RAD_PER_TICK = ( 2.0* M_PI / TICKS);
+	RAD_STEER_PER_TICK = (2.0* M_PI/TICKS)*12.0/20.0;
 	steerMiddle = 999;
 	x = 0;
 	y = 0;
-	theta = 0; (float) M_PI;
+	theta = 0; //(float) M_PI;
 	delta = (float) M_PI;
 
 	Xt_1<<0,
@@ -552,7 +578,7 @@ int main(int argc, char** argv) {
 	g<<0,0,0;
 
 	const float SIGMA_DIRVEDIST=0.05; //5cms
-	const float SIGMA_DELTA=0.01; //0.01 radians
+	const float SIGMA_DELTA=0.02; //0.01 radians
 
 
 	E_control << SIGMA_DIRVEDIST, 0,
@@ -580,7 +606,7 @@ int main(int argc, char** argv) {
 
 	Q<<1,0,0,
 	0,1,0,
-	0,0,1;
+	0,0,0.001;
 
 	HomographyMatrix<< -0.3533094995479479, -1.770444793641235, 557.3953069956937,
  	0.1624698020692046, -3.595786418237763, 1115.419594647802,
@@ -596,14 +622,16 @@ int main(int argc, char** argv) {
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
 	ros::NodeHandle n;
-	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 3, steerCallback);
-	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 3, driveCallback);
+	ros::Subscriber subOdo = n.subscribe("nxt/odo_steer", 5, steerCallback);
+	ros::Subscriber subDrive = n.subscribe("nxt/odo_drive", 5, driveCallback);
 	ros::Subscriber subOrbSlamPose = n.subscribe("/orb_slam2_mono/pose",1, slamCamCallback);
 	//ros::Subscriber subOctomap = n.subscribe("my_octomap",1, octomapCallback);
 	ros::Subscriber subCamera = n.subscribe("camera/image_raw",1, cameraCallback);
 
 	ros::Publisher marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_cube", 0);
 	ros::Publisher marker_arrow_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_arrow", 0);
+	ros::Publisher marker_slam_pub = n.advertise<visualization_msgs::Marker>("visualization_marker_slam_arrow", 0);
+
 	pub_octomap = n.advertise<octomap_msgs::Octomap>("my_octomap", 1);
 	myoctomap_msg.header.frame_id = fixed_frame;
 
@@ -617,18 +645,20 @@ int main(int argc, char** argv) {
 
     poseWithCovar.header.frame_id = fixed_frame;
 
-	ros::Rate loop_rate(1);
+	ros::Rate loop_rate(10);
 
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
 	uint32_t shape_arrow = visualization_msgs::Marker::ARROW;
-	
+
 	visualization_msgs::Marker marker_cube;
 	visualization_msgs::Marker marker_arrow;
+	visualization_msgs::Marker slam_arrow;
 	marker_cube.lifetime = ros::Duration();
 	marker_arrow.lifetime = ros::Duration();
 	marker_arrow.header.frame_id = fixed_frame;
 	marker_cube.header.frame_id = fixed_frame;
+	slam_arrow.header.frame_id = fixed_frame;
 	marker_cube.lifetime = ros::Duration();
 	marker_arrow.lifetime = ros::Duration();
 
@@ -640,13 +670,17 @@ int main(int argc, char** argv) {
 	marker_arrow.ns = "marker_arrow";
 	marker_arrow.id = 0;
 
+	slam_arrow.ns = "slam_arrow";
+	slam_arrow.id = 0;
 	// Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
 	marker_cube.type = shape_cube;
 	marker_arrow.type = shape_arrow;
+	slam_arrow.type = shape_arrow;
 
 	// Set the marker action.  Options are ADD and DELETE
 	marker_cube.action = visualization_msgs::Marker::ADD;
 	marker_arrow.action = visualization_msgs::Marker::ADD;
+	slam_arrow.action = visualization_msgs::Marker::ADD;
 
 	// Set the color -- be sure to set alpha to something non-zero!
 	marker_cube.color.r = 1.0f;
@@ -660,6 +694,11 @@ int main(int argc, char** argv) {
 	marker_arrow.color.b = 0.0f;
 	marker_arrow.color.a = 0.5;
 
+	slam_arrow.color.r = 1.0f;
+	slam_arrow.color.g = 0.0f;
+	slam_arrow.color.b = 1.0f;
+	slam_arrow.color.a = 1.0;
+
 	// Set the scale of the marker -- 1x1x1 here means 1m on a side
 	marker_cube.scale.x = 1.0;
 	marker_cube.scale.y = 1.0;
@@ -669,6 +708,10 @@ int main(int argc, char** argv) {
 	marker_arrow.scale.x = 1.0;
 	marker_arrow.scale.y = 1.0;
 	marker_arrow.scale.z = 1.0;
+
+	slam_arrow.scale.x = 1;
+	slam_arrow.scale.y = 0.05;
+	slam_arrow.scale.z = 0.05;
 
 	//string path = "C:\\Users\\Aswath\\Documents\\myfiles\\VIT\\Capstone_Project\\catkin_ws\\src\\nxtbot\\assets\\road.jpeg";
 	//string path="/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/road.jpeg";
@@ -686,6 +729,7 @@ int main(int argc, char** argv) {
 
 		marker_arrow.header.stamp = ros::Time::now();
 		marker_cube.header.stamp = ros::Time::now();
+		slam_arrow.header.stamp = ros::Time::now();
 
 		// Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
 		marker_cube.pose.position.x = g(0,0)/100;
@@ -695,34 +739,25 @@ int main(int argc, char** argv) {
 		marker_arrow.pose.position.x = g(0, 0)/100+cos(g(2,0))*1;
 		marker_arrow.pose.position.y = g(1, 0)/100+sin(g(2,0))*1;
 		marker_arrow.pose.position.z = 0;
+
+		slam_arrow.pose.position.x = ht(0, 0)/100;
+		slam_arrow.pose.position.y = ht(1, 0)/100;
+		slam_arrow.pose.position.z = 0; //ht(2,0);
 		
 		//std::cout << g(0, 0) << "   " << g(1, 0) << "   "<<g(2,0)<<std::endl;
-		tf::Quaternion thetaQuart;
-		for(int i =-6;i <=12;i++){
-			double roll, pitch, yaw,visYaw;
-			yaw=i*M_PI/4;
-			thetaQuart.setRPY(0,0,yaw*2);
-			tf::Matrix3x3 m(thetaQuart);
-			m.getRPY(roll, pitch, visYaw);
-			double yaw_=visYaw/2;
-			/*
-			if(yaw<0){
-				yaw=M_PI+yaw;
-			}
-			g(2,0)= yaw;
-			*/
-			marker_arrow.pose.orientation = tf::createQuaternionMsgFromYaw(visYaw);
-			marker_arrow_pub.publish(marker_arrow);
-			cout<<"some statement";
-		}
+
 		marker_cube.pose.orientation = tf::createQuaternionMsgFromYaw(g(2,0));
-		marker_arrow.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, g(2,0)+delta);
+		marker_arrow.pose.orientation = tf::createQuaternionMsgFromYaw(g(2,0)+delta);
+		slam_arrow.pose.orientation.x = slamQ.getX();
+		slam_arrow.pose.orientation.y = slamQ.getY();
+		slam_arrow.pose.orientation.z = slamQ.getZ();
+		slam_arrow.pose.orientation.w = slamQ.getW();
 
 
 		// Publish the marker
 		marker_pub.publish(marker_cube);
 		marker_arrow_pub.publish(marker_arrow);
-
+		marker_slam_pub.publish(slam_arrow);
 
 		poseWithCovar.header.stamp = ros::Time::now();
 

@@ -61,7 +61,7 @@ def talker():
     rospy.Subscriber("nxt/drive_motor", Int16, drive,queue_size=1)
 
     rospy.init_node('nxt_pub', anonymous=True)
-    rate = rospy.Rate(1) # 80hz
+    rate = rospy.Rate(20) # 80hz
 
     prevstackSteer=0
     while not rospy.is_shutdown():
@@ -72,11 +72,11 @@ def talker():
             motorSteer.weak_turn(power=60,tacho_units=stackSteer[0])
             stackSteer.pop()
 
-        if stackDrive>10:
-            motorDrive.weak_turn(power=70,tacho_units=10*frontback)
-            stackDrive=stackDrive - 10
+        if stackDrive>20:
+            motorDrive.weak_turn(power=80,tacho_units=20*frontback)
+            stackDrive=stackDrive - 20
 
-        #rate.sleep()
+        rate.sleep()
 
 if __name__ == '__main__':
     try:

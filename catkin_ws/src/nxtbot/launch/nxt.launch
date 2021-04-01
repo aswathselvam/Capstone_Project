@@ -6,7 +6,8 @@
 
 <include file="$(find nxtbot)/launch/utils.launch" />
 <!-- roslaunch nxtbot utils.launch -->
-<!-- <node pkg="nxtbot" type="main" name="main" />
+
+<node pkg="nxtbot" type="main" name="main" />
 
 <node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
 
