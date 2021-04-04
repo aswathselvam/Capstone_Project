@@ -14,5 +14,6 @@
         "cmath": "cpp",
         "ostream": "cpp",
         "*.tcc": "cpp"
-    }
+    },
+    "python.pythonPath": "/home/aswath/anaconda3/envs/rosconda/bin/python"
 }

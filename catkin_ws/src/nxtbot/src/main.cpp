@@ -70,6 +70,8 @@ void refresh_Gt(Eigen::MatrixXd* Gt);
 void refresh_Vt(Eigen::MatrixXd* Vt);
 
 void path_follower();
+og::PathGeometric* pth;
+int pth_node_index=0;
 
 geometry_msgs::PoseWithCovarianceStamped poseWithCovar;
 ros::Publisher pub_drive_motor;
@@ -81,6 +83,7 @@ octomap::AbstractOcTree* my_tree;
 octomap::OcTree my_octree(0.01);
 Point2f dest_point;
 Point2f next_node;
+Point2f start_node;
 ros::Publisher pub_octomap;
 octomap_msgs::Octomap myoctomap_msg;
 
@@ -293,16 +296,16 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 
 	grow(img, dest, mask, Point(img.cols/2, img.rows-10), 20);
 	mask = mask * 255;
-	warpPerspective(img, Homo, HomographyMatrix, img.size());
-	imshow("Image", Homo);
+	//warpPerspective(img, Homo, HomographyMatrix, img.size());
+	//imshow("Image", Homo);
 	Mat original_mask;
 	//gpumask_out = cuda::GpuMat(mask);
 	//cuda::GpuMat maskk = cuda::GpuMat(mask);
 	warpPerspective(mask, original_mask, HomographyMatrix, mask.size());		
 	//gpumask_out.download(mask);
 	cv::resize(original_mask, mask, cv::Size(), 0.25, 0.25);
-	imshow("Perspective Mask", mask);
-	waitKey(1);
+	//imshow("Perspective Mask", mask);
+	//waitKey(1);
 	float x_;
 	float y_;
 	int val=0;
@@ -310,6 +313,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	int min=9999,max=-9999;
 	for (int index_x = -mask.rows/2; index_x < mask.rows/2; index_x++)
 	{
+		int count_of_occupied_cells=0;
 		for (int index_y = -mask.cols/2; index_y < mask.cols/2; index_y++)
 		{
 			//Transform coordinate from local to global 
@@ -325,6 +329,10 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 			if (val<0){
 				my_octree.updateNode(endpoint, false); 
 			}else{
+				count_of_occupied_cells+=1;
+				if(count_of_occupied_cells>mask.cols){
+					hasAplan=false;
+				}
 				my_octree.updateNode(endpoint, true);
 			}
 
@@ -338,11 +346,77 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 	}
 	if(!hasAplan){
 		plan();
+		//path_follower();
+	}else{
+		stanley_controller();
 	}
 
 
 }
 
+void stanley_controller(){
+
+	ob::RealVectorStateSpace::StateType *path_node = pth->getState(pth_node_index)->as<ob::RealVectorStateSpace::StateType>();
+	start_node.x=path_node->values[0];
+	start_node.y=path_node->values[1];
+	
+	path_node = pth->getState(pth_node_index+1)->as<ob::RealVectorStateSpace::StateType>();
+	next_node.x=path_node->values[0];
+	next_node.y=path_node->values[1];
+	
+	float x1=start_node.x*100;
+	float x2=next_node.x*100;
+	
+	float y1=start_node.y*100;
+	float y2=next_node.y*100;
+
+	float a=(y2-y1)/(x2-x1);
+	float b =1;
+	float c=x1*( ((y2-y1)/(x2-x1)) +y1);
+	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
+	float e=(a*g(0,0)+b*g(1,0)+c)/ld;
+
+	float del = atan(a);
+	float phi = del - theta;
+	float steer_rad  = phi + atan(e/driveDist);
+
+	int steer_ticks =  (steer_rad / RAD_STEER_PER_TICK ) ; 
+	
+	int drive_ticks;
+	if(ld>10){
+		float drive_dist = 10;
+		float drive_rad = drive_dist / (2* M_PI * RADIUS) ;
+		drive_ticks = drive_rad * TICKS ;
+	}else{
+		pth_node_index+=1;
+		if(pth_node_index>=pth->getStateCount()){
+			//reached destination
+
+			return;
+		}
+		//hasAplan=false;
+		//return;
+	}
+
+	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
+		//move to next Point, or try some other maneuver
+		if(steer_ticks<0){
+			steer_ticks = -MAX_STEER_ANGLE;
+		}else{
+			steer_ticks = MAX_STEER_ANGLE;
+		}
+	}
+	if(connection_established){
+			
+		Int16msg.data = steerMiddle + steer_ticks;
+		//pub_steer_motor.publish(Int16msg);
+		
+		Int16msg.data = drive_ticks;
+		//pub_drive_motor.publish(Int16msg);
+		
+	}	
+
+}
 
 bool isStateValid(const ob::State *state){
 
@@ -354,7 +428,7 @@ bool isStateValid(const ob::State *state){
 	octomap::point3d query(pos->values[0],pos->values[1],0.0f);
   	octomap::OcTreeNode *result = my_octree.search(query);
 	
-	if((result == NULL) || (result->getValue() <= 0.5)){
+	if((result == NULL) || (result->getValue() <= 0.5 || true)){
 		return true;
 	}else{
 		return false;
@@ -419,24 +493,25 @@ void plan()
 	std::cout << "Reached 2: " << std::endl;
 	if (solved)
 	{
+		hasAplan=true;
+		pth_node_index=0;
         // get the goal representation from the problem definition (not the same as the goal state)
         // and inquire about the found path
 		std::cout << "Found solution:" << std::endl;
 		ob::PathPtr path = pdef->getSolutionPath();
-		og::PathGeometric* pth = pdef->getSolutionPath()->as<og::PathGeometric>();
+		pth = pdef->getSolutionPath()->as<og::PathGeometric>();
 		pth->printAsMatrix(std::cout);
-
+		
 		
 		//Publish path as markers
-
-		visualization_msgs::Marker marker;
-		marker.action = visualization_msgs::Marker::DELETEALL;
-		vis_pub.publish(marker);
+		visualization_msgs::Marker path_marker;
+		path_marker.action = visualization_msgs::Marker::DELETEALL;
+		vis_pub.publish(path_marker);
 
 		for (std::size_t idx = 0; idx < pth->getStateCount (); idx++)
 		{
                 // cast the abstract state type to the type we expect
-			const ob::RealVectorStateSpace::StateType *pos = pth->getState(idx)->as<ob::RealVectorStateSpace::StateType>();
+			const ob::RealVectorStateSpace::StateType *path_node = pth->getState(idx)->as<ob::RealVectorStateSpace::StateType>();
 
             // extract the first component of the state and cast it to what we expect
 			//const ob::RealVectorStateSpace::StateType *pos = se3state->as<ob::RealVectorStateSpace::StateType>(0);
@@ -445,48 +520,40 @@ void plan()
 			//const ob::SO3StateSpace::StateType *rot = se3state->as<ob::SO3StateSpace::StateType>(1);
 			
 			if (idx==0){
-				next_node.x=pos->values[0];
-				next_node.y=pos->values[1];
-				path_follower();
+				start_node.x=path_node->values[0];
+				start_node.y=path_node->values[1];
+			}else if(idx==1){
+				next_node.x=path_node->values[0];
+				next_node.y=path_node->values[1];
 			}
 
 
-			marker.header.frame_id = fixed_frame;
-			marker.header.stamp = ros::Time();
-			marker.ns = "path";
-			marker.id = idx;
-			marker.type = visualization_msgs::Marker::LINE_STRIP;
-			marker.action = visualization_msgs::Marker::ADD;
+			path_marker.header.frame_id = fixed_frame;
+			path_marker.header.stamp = ros::Time();
+			path_marker.ns = "path";
+			path_marker.id = idx;
+			path_marker.type = visualization_msgs::Marker::LINE_STRIP;
+			path_marker.action = visualization_msgs::Marker::ADD;
 			geometry_msgs::Point tmp_p;
 
-			tmp_p.x=pos->values[0];
-			tmp_p.y=pos->values[1];
-			marker.points.push_back(tmp_p);
-			marker.scale.x = 0.1;
-			marker.scale.y = 0.1;
-			marker.scale.z = 0.1;
-			marker.pose.orientation.x = 0;
-			marker.pose.orientation.y = 0;
-			marker.pose.orientation.z = 0;
-			marker.pose.orientation.w = 1;
-			marker.color.a = 1.0;
-			marker.color.r = 1.0;
-			marker.color.g = 1.0;
-			marker.color.b = 0.0;
-			vis_pub.publish(marker);
+			tmp_p.x=path_node->values[0];
+			tmp_p.y=path_node->values[1];
+			path_marker.points.push_back(tmp_p);
+			path_marker.scale.x = 0.1;
+			path_marker.scale.y = 0.1;
+			path_marker.scale.z = 0.1;
+			path_marker.pose.orientation.x = 0;
+			path_marker.pose.orientation.y = 0;
+			path_marker.pose.orientation.z = 0;
+			path_marker.pose.orientation.w = 1;
+			path_marker.color.a = 1.0;
+			path_marker.color.r = 1.0;
+			path_marker.color.g = 1.0;
+			path_marker.color.b = 0.0;
+			vis_pub.publish(path_marker);
 			ros::Duration(0.05).sleep();
-			std::cout << "Published marker: " << idx << std::endl;  
 		}
-		/*
-		while(ros::ok){
-		traj_pub.publish(msg);
-		vis_pub.publish(marker);
-		ros::spinOnce();
-		loop_rate.sleep();
-		}
-		*/
-
-
+		
 	}
 	else
 		std::cout << "No solution found" << std::endl;
@@ -514,7 +581,7 @@ void path_follower(){
 
 	// TODO: Might need to fix this equation:
 	float steer_rad = atan( ( L/pow(ld,2) ) * 2 *( (y2-y1) - theta ) ); 
-	int steer_ticks =  0.45 * (steer_rad / RAD_STEER_PER_TICK ) ; 
+	int steer_ticks =  (steer_rad / RAD_STEER_PER_TICK ) ; 
 	
 	float drive_dist = ld*alpha/sin(alpha);
 	drive_dist = isnan(drive_dist) ? ld*1: drive_dist; 
@@ -523,15 +590,15 @@ void path_follower(){
 	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
 		return ;
-	}else{
+	}else if(connection_established){
+			
+		Int16msg.data = steerMiddle + steer_ticks;
+		//pub_steer_motor.publish(Int16msg);
 		
-	Int16msg.data = steerMiddle + steer_ticks;
-	//pub_steer_motor.publish(Int16msg);
-	
-	Int16msg.data = drive_ticks;
-	//pub_drive_motor.publish(Int16msg);
-	
-	hasAplan=true;
+		Int16msg.data = drive_ticks;
+		//pub_drive_motor.publish(Int16msg);
+		
+		hasAplan=true;
 	}
 }
 
@@ -613,9 +680,7 @@ int main(int argc, char** argv) {
 	0.0002770977906833813, -0.00456378934828412, 1;
 
 	next_node.x=0.10;
-	next_node.y=0.10;
-	path_follower();
-	
+	next_node.y=0.10;	
 
 	fixed_frame= "my_frame";
 
