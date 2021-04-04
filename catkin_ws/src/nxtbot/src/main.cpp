@@ -70,6 +70,8 @@ void refresh_Gt(Eigen::MatrixXd* Gt);
 void refresh_Vt(Eigen::MatrixXd* Vt);
 
 void path_follower();
+void stanley_controller();
+
 og::PathGeometric* pth;
 int pth_node_index=0;
 
@@ -355,7 +357,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 }
 
 void stanley_controller(){
-
+	/*
 	ob::RealVectorStateSpace::StateType *path_node = pth->getState(pth_node_index)->as<ob::RealVectorStateSpace::StateType>();
 	start_node.x=path_node->values[0];
 	start_node.y=path_node->values[1];
@@ -369,16 +371,24 @@ void stanley_controller(){
 	
 	float y1=start_node.y*100;
 	float y2=next_node.y*100;
+	*/
 
+	float x1=0,x2=-10,y1=0,y2=-10;
 	float a=(y2-y1)/(x2-x1);
-	float b =1;
+	float b=-1;
 	float c=x1*( ((y2-y1)/(x2-x1)) +y1);
-	float ld = sqrt(pow((x2-x1),2) + pow((y2-y1),2) );
-	float e=(a*g(0,0)+b*g(1,0)+c)/ld;
+	float ld = sqrt(pow((x2-g(0,0)),2) + pow((y2-g(1,0)),2) );
+	float denominator = sqrt(pow((y2-y1)/(x2-x1),2)+1);
+	float e=(a*g(0,0)+b*g(1,0)+c)/denominator;
+	//float e=(a*10+b*0+c)/ld;
 
-	float del = atan(a);
+	float del = atan2((double)(y2-y1),(double)(x2-x1));
+	del = del<0 ? 2* M_PI + del : del;
 	float phi = del - theta;
-	float steer_rad  = phi + atan(e/driveDist);
+	//Sensitivity can be increased if the goal node is very near.
+	//A function of remaining distance.
+	float sensitivity = 10;
+	float steer_rad  = phi + atan(e/sensitivity);
 
 	int steer_ticks =  (steer_rad / RAD_STEER_PER_TICK ) ; 
 	
@@ -406,6 +416,7 @@ void stanley_controller(){
 			steer_ticks = MAX_STEER_ANGLE;
 		}
 	}
+
 	if(connection_established){
 			
 		Int16msg.data = steerMiddle + steer_ticks;
@@ -680,7 +691,9 @@ int main(int argc, char** argv) {
 	0.0002770977906833813, -0.00456378934828412, 1;
 
 	next_node.x=0.10;
-	next_node.y=0.10;	
+	next_node.y=0.10;
+
+	stanley_controller();	
 
 	fixed_frame= "my_frame";
 
