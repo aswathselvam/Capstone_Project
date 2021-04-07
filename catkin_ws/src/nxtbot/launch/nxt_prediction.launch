@@ -1,0 +1,10 @@
+<launch>
+<node pkg="nxtbot" type="nxtpp_pub"  name="nxtpp_pub" />
+<!-- rosrun nxtbot nxt_pub.py -->
+
+<node pkg="tf" type="static_transform_publisher" name="laser" args="0 0 0 0 0 0 1  map my_frame  10"/>
+<!-- rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10 -->
+
+<node pkg="rviz" type="rviz" name="my_rviz" args="-d $(find nxtbot)/rviz/config_file.rviz" />
+
+</launch>
