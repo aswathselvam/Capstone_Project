@@ -24,7 +24,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   sensor_msgs
   image_transport
-  cv_bridge
 )
 
 find_package(octomap REQUIRED)
@@ -32,7 +31,7 @@ find_package(ompl REQUIRED)
 find_package(fcl REQUIRED)
 
 roslaunch_add_file_check(launch)
-
+find_package(cv_bridge)
 find_package(OpenCV 4.4.0 EXACT REQUIRED)
 
 find_package(Eigen3 REQUIRED)
@@ -169,7 +168,7 @@ endif()
 include_directories(
   include
   "/home/aswath/Downloads/nxtpp-master/include"
-#  /home/aswath/Downloads/vision_opencv/cv_bridge/include
+#  "/home/aswath/Capstone_Project/catkin_ws/src/cv_bridge/include"
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
@@ -225,6 +224,7 @@ include_directories(
    ${OMPL_LIBRARIES}
    ${PCL_LIBRARIES}
    ${fcl_LIBRARIES}
+   cv_bridge
  )
 
  target_link_libraries(octomap_trial

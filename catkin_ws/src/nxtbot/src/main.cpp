@@ -142,7 +142,8 @@ void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	if (steerMiddle == 999) {
 		steerMiddle = msg->data;
 	}
-	int steer_diff= steerMiddle - msg->data;
+	//int steer_diff= steerMiddle - msg->data;
+	int steer_diff = -msg->data;
 	if(abs(steer_diff)<30){
 		delta = (RAD_STEER_PER_TICK) * -(0.2*steer_diff);
 	}else{
@@ -394,7 +395,7 @@ void stanley_controller(){
 	float y2=next_node.y*100;
 	*/
 
-	float x1=0,x2=100,y1=0,y2=100;
+	float x1=0,x2=100,y1=0,y2=-100;
 	float a=(y2-y1)/(x2-x1);
 	float b=-1;
 	float c=-x1*(y2-y1)/(x2-x1) +y1;
@@ -405,12 +406,13 @@ void stanley_controller(){
 	
 	
 	float del = atan2((double)(y2-y1),(double)(x2-x1));
-	if(del<M_PI_2 || del >-M_PI_2){
+
+	del = del<0 ? 2* M_PI + del : del;
+	float phi = del - theta;
+	if(del>M_PI){
 		//e=-e;
 	}
-	del = del<0 ? 2* M_PI + del : del;
-
-	float phi = del - theta;
+	/*
 	if(abs(phi)>M_PI){
 		if(phi>0){
 			phi = -2*M_PI + phi; 
@@ -418,23 +420,24 @@ void stanley_controller(){
 			phi = 2*M_PI + phi;
 		}
 	}
-	
+	*/
 	
 	//Sensitivity can be increased if the goal node is very near.
 	//A function of remaining distance.
 	float sensitivity = 20;
 	float error_correction = atan(e/sensitivity);
-	float steer_rad;
+	float steer_rad=phi+error_correction;
+	/*
 	if(abs(phi)<M_PI_2/4){
 		steer_rad  = error_correction;
 	}else{
 		steer_rad = phi;
 	}
-
+	*/
 	int steer_ticks =  (steer_rad / RAD_STEER_PER_TICK ) ; 
 
 	int drive_ticks;
-	if(ld>=15){
+	if(ld>10){
 		float drive_dist = 5;
 		float drive_rad = drive_dist / (2* M_PI * RADIUS) ;
 		drive_ticks = drive_rad * TICKS ;
@@ -776,7 +779,7 @@ int main(int argc, char** argv) {
 	ros::Rate loop_rate(10);
 
 	Int16msg.data = 0;
-	pub_reset_odo.publish(Int16msg);
+	//pub_reset_odo.publish(Int16msg);
 
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
