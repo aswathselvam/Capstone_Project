@@ -168,6 +168,7 @@ endif()
 ## Your package locations should be listed before other locations
 include_directories(
   include
+  "/home/aswath/Downloads/nxtpp-master/include"
 #  /home/aswath/Downloads/vision_opencv/cv_bridge/include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
@@ -201,6 +202,7 @@ include_directories(
 
  add_executable(camstream src/read_from_cam.cpp)
  add_executable(get_homography src/get_homography.cpp)
+ add_executable(nxtpp_pub src/nxtpp_pub.cpp)
 
  ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -261,6 +263,14 @@ target_link_libraries(camstream
 target_link_libraries(get_homography
   ${OpenCV_LIBS}
 )
+
+target_link_libraries(nxtpp_pub
+  ${catkin_LIBRARIES}
+  "/usr/lib/libnxtpp.a"
+  "/usr/lib/x86_64-linux-gnu/libusb.so"
+  "/opt/ros/noetic/lib/libxmlrpcpp.so"
+  )
+
 #############
 ## Install ##
 #############

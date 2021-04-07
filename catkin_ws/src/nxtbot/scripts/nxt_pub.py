@@ -13,7 +13,8 @@ brick = nxt.locator.find_one_brick(debug=True)
 
 motorSteer = nxt.Motor(brick, nxt.PORT_C)
 motorDrive = nxt.Motor(brick, nxt.PORT_B)
-stackSteer = []
+stackSteer = 0
+updateSteer=False
 stackDrive = 0
 frontback=1
 
@@ -40,19 +41,29 @@ def moveRobot(msg):
     #motorSteer.weak_turn(power=int(msg.angular.z),tacho_units=20)
 
 def steer(msg):
-    global stackSteer
-    stackSteer.append(msg.data)
+    #global stackSteer, updateSteer
+    power=60
+    if(msg.data<0):
+        power = -power 
+    motorSteer.turn(power=power,tacho_units=abs(msg.data))#,brake=False)
+    #stackSteer.append(msg.data)
+    #stackSteer = msg.data
+    updateSteer=True
+    return 
 
 
 def drive(msg):
-    global stackDrive, frontback
-    stackDrive=msg.data
-    frontback= 1 if stackDrive>0 else -1 
+    #global stackDrive, frontback
+    motorDrive.weak_turn(power=60,tacho_units=abs(msg.data))#,brake=False)
+    motorSteer.reset_position(False)
+
+    #stackDrive=msg.data
+    #frontback= 1 if stackDrive>0 else -1 
     #print(msg.data)
 
 
 def talker():
-    global stackDrive, stackSteer, frontback
+    global stackDrive, stackSteer, updateSteer, frontback
     pubSteer = rospy.Publisher('nxt/odo_steer', Int16, queue_size=3)
     pubDrive = rospy.Publisher('nxt/odo_drive', Int16, queue_size=3)
     
@@ -61,21 +72,21 @@ def talker():
     rospy.Subscriber("nxt/drive_motor", Int16, drive,queue_size=1)
 
     rospy.init_node('nxt_pub', anonymous=True)
-    rate = rospy.Rate(20) # 80hz
+    rate = rospy.Rate(1) # 80hz
 
     prevstackSteer=0
     while not rospy.is_shutdown():
         pubSteer.publish(-1*motorSteer.get_tacho().block_tacho_count)
         pubDrive.publish(motorDrive.get_tacho().block_tacho_count)
+        '''
+        if updateSteer:
+            #motorSteer.weak_turn(power=60,tacho_units=stackSteer)
+            updateSteer=False
 
-        if (len(stackSteer)>0):
-            motorSteer.weak_turn(power=60,tacho_units=stackSteer[0])
-            stackSteer.pop()
-
-        if stackDrive>20:
-            motorDrive.weak_turn(power=80,tacho_units=20*frontback)
-            stackDrive=stackDrive - 20
-
+        if stackDrive>4:
+            motorDrive.weak_turn(power=80,tacho_units=stackDrive)
+            stackDrive=0
+        '''
         rate.sleep()
 
 if __name__ == '__main__':

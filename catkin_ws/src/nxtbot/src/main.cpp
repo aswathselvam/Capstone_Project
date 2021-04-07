@@ -78,7 +78,10 @@ int pth_node_index=0;
 geometry_msgs::PoseWithCovarianceStamped poseWithCovar;
 ros::Publisher pub_drive_motor;
 ros::Publisher pub_steer_motor;
+ros::Publisher pub_reset_odo;
 std_msgs::Int16 Int16msg;
+int global_drive_odo=0;
+std_msgs::Int16 Int16msgDrive;
 bool connection_established = false;
 
 octomap::AbstractOcTree* my_tree; 
@@ -145,17 +148,31 @@ void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
 	}else{
 		delta = (RAD_STEER_PER_TICK) * -(steer_diff);
 	}
+	if(delta>M_PI_2){
+		delta=M_PI_2-0.01;
+	}
+	if(delta<-M_PI_2){
+		delta=-M_PI_2+0.01;		
+	}
 }
 
 void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
+	global_drive_odo = msg->data;
 	if(!connection_established){
+		if(steerMiddle == 999){
+			return;
+		}
 		prevDist = RADIUS * (RAD_PER_TICK) * (msg->data);
 		connection_established = true;
 	}
 
+	
 	fullDist = RADIUS * (RAD_PER_TICK) * (msg->data);
 	driveDist = fullDist - prevDist;
 	prevDist = fullDist;
+	
+	//driveDist = RADIUS * (RAD_PER_TICK) * (msg->data);
+
 	
 	if(sent_move_command && displacement_dist<10){
 		displacement_dist+=driveDist;
@@ -183,6 +200,10 @@ void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
 	x = g(0,0);
 	y = g(1, 0);
 	theta = g(2, 0);
+
+	//go to a goal with only location estimation with EKF odometry prediction
+	//stanley_controller();
+
 }
 
 void slamCamCallback(const geometry_msgs::PoseStamped::ConstPtr& msg){
@@ -350,7 +371,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 		plan();
 		//path_follower();
 	}else{
-		stanley_controller();
+		//stanley_controller();
 	}
 
 
@@ -373,31 +394,56 @@ void stanley_controller(){
 	float y2=next_node.y*100;
 	*/
 
-	float x1=0,x2=-10,y1=0,y2=-10;
+	float x1=0,x2=100,y1=0,y2=100;
 	float a=(y2-y1)/(x2-x1);
 	float b=-1;
-	float c=x1*( ((y2-y1)/(x2-x1)) +y1);
+	float c=-x1*(y2-y1)/(x2-x1) +y1;
 	float ld = sqrt(pow((x2-g(0,0)),2) + pow((y2-g(1,0)),2) );
 	float denominator = sqrt(pow((y2-y1)/(x2-x1),2)+1);
 	float e=(a*g(0,0)+b*g(1,0)+c)/denominator;
-	//float e=(a*10+b*0+c)/ld;
-
+	//float e=(a*10+b*0+c)/denominator;
+	
+	
 	float del = atan2((double)(y2-y1),(double)(x2-x1));
+	if(del<M_PI_2 || del >-M_PI_2){
+		//e=-e;
+	}
 	del = del<0 ? 2* M_PI + del : del;
+
 	float phi = del - theta;
+	if(abs(phi)>M_PI){
+		if(phi>0){
+			phi = -2*M_PI + phi; 
+		}else{
+			phi = 2*M_PI + phi;
+		}
+	}
+	
+	
 	//Sensitivity can be increased if the goal node is very near.
 	//A function of remaining distance.
-	float sensitivity = 10;
-	float steer_rad  = phi + atan(e/sensitivity);
+	float sensitivity = 20;
+	float error_correction = atan(e/sensitivity);
+	float steer_rad;
+	if(abs(phi)<M_PI_2/4){
+		steer_rad  = error_correction;
+	}else{
+		steer_rad = phi;
+	}
 
 	int steer_ticks =  (steer_rad / RAD_STEER_PER_TICK ) ; 
-	
+
 	int drive_ticks;
-	if(ld>10){
-		float drive_dist = 10;
+	if(ld>=15){
+		float drive_dist = 5;
 		float drive_rad = drive_dist / (2* M_PI * RADIUS) ;
 		drive_ticks = drive_rad * TICKS ;
 	}else{
+		return;
+		
+	}
+	/*else if(hasAplan){
+		
 		pth_node_index+=1;
 		if(pth_node_index>=pth->getStateCount()){
 			//reached destination
@@ -406,7 +452,9 @@ void stanley_controller(){
 		}
 		//hasAplan=false;
 		//return;
+		
 	}
+	*/
 
 	if ( abs(steer_ticks) > MAX_STEER_ANGLE ){
 		//move to next Point, or try some other maneuver
@@ -419,12 +467,15 @@ void stanley_controller(){
 
 	if(connection_established){
 			
-		Int16msg.data = steerMiddle + steer_ticks;
-		//pub_steer_motor.publish(Int16msg);
+		Int16msg.data = steer_ticks;
+		cout<<"Steering command: "<<Int16msg.data <<endl;
+		if(abs(Int16msg.data)>0){
+			pub_steer_motor.publish(Int16msg);
+		}
 		
-		Int16msg.data = drive_ticks;
-		//pub_drive_motor.publish(Int16msg);
-		
+		Int16msgDrive.data = drive_ticks;
+		cout<<"Drive command: "<<Int16msgDrive.data <<endl;
+		pub_drive_motor.publish(Int16msgDrive);
 	}	
 
 }
@@ -693,8 +744,6 @@ int main(int argc, char** argv) {
 	next_node.x=0.10;
 	next_node.y=0.10;
 
-	stanley_controller();	
-
 	fixed_frame= "my_frame";
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
@@ -714,8 +763,9 @@ int main(int argc, char** argv) {
 	myoctomap_msg.header.frame_id = fixed_frame;
 
 	ros::Publisher pub_pose = n.advertise<geometry_msgs::PoseWithCovarianceStamped> ("pose_with_covar", 1);
-	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",0);
-	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",0);
+	pub_steer_motor = n.advertise<std_msgs::Int16>("nxt/steer_motor",1);
+	pub_drive_motor = n.advertise<std_msgs::Int16>("nxt/drive_motor",1);
+	pub_reset_odo = n.advertise<std_msgs::Int16>("nxt/reset_odo",1);
 
 	vis_pub = n.advertise<visualization_msgs::Marker>( "visualization_marker_path", 0 );
 	traj_pub = n.advertise<trajectory_msgs::MultiDOFJointTrajectory>("waypoints",10);
@@ -724,6 +774,9 @@ int main(int argc, char** argv) {
     poseWithCovar.header.frame_id = fixed_frame;
 
 	ros::Rate loop_rate(10);
+
+	Int16msg.data = 0;
+	pub_reset_odo.publish(Int16msg);
 
 	// Set our initial shape type to be a cube
 	uint32_t shape_cube = visualization_msgs::Marker::CUBE;
@@ -803,6 +856,7 @@ int main(int argc, char** argv) {
 	int count = 0;
 	while (ros::ok())
 	{
+		stanley_controller();
 		// Set the frame ID and timestamp.  See the TF tutorials for information on these.
 
 		marker_arrow.header.stamp = ros::Time::now();
