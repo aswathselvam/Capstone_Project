@@ -13,7 +13,7 @@ ros::Publisher pub_odo_drive;
 std_msgs::Int16 Int16msg;
 
 void steerCallback(const std_msgs::Int16::ConstPtr& msg) {
-    NXT::Motor::GoTo(OUT_C, 40, msg->data, true);
+    NXT::Motor::GoTo(OUT_C, 40, -msg->data, true);
 }
 
 void driveCallback(const std_msgs::Int16::ConstPtr& msg) {
@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 	ros::Rate loop_rate(10);
 
     while(ros::ok()){
-        Int16msg.data = NXT::Motor::GetRotationCount(OUT_C);
+        Int16msg.data = -NXT::Motor::GetRotationCount(OUT_C);
         pub_odo_steer.publish(Int16msg);
         Int16msg.data = NXT::Motor::GetRotationCount(OUT_B);
         pub_odo_drive.publish(Int16msg);

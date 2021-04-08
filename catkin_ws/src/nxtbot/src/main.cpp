@@ -395,7 +395,7 @@ void stanley_controller(){
 	float y2=next_node.y*100;
 	*/
 
-	float x1=0,x2=-100,y1=0,y2=100;
+	float x1=0,x2=-50,y1=0,y2=-50;
 	float a=(y2-y1)/(x2-x1);
 	float b=-1;
 	float c=-x1*(y2-y1)/(x2-x1) +y1;
