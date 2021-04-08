@@ -395,7 +395,7 @@ void stanley_controller(){
 	float y2=next_node.y*100;
 	*/
 
-	float x1=0,x2=100,y1=0,y2=-100;
+	float x1=0,x2=-100,y1=0,y2=100;
 	float a=(y2-y1)/(x2-x1);
 	float b=-1;
 	float c=-x1*(y2-y1)/(x2-x1) +y1;
@@ -409,9 +409,21 @@ void stanley_controller(){
 
 	del = del<0 ? 2* M_PI + del : del;
 	float phi = del - theta;
+	
+	if(abs(phi)>M_PI){
+        if(phi<0)
+            phi = (2*M_PI+phi);
+        else
+            phi=-(2*M_PI-phi);    
+    }
+
 	if(del>M_PI){
-		//e=-e;
+		e=-e;
 	}
+	if(a<0){
+		e=-e;
+	}
+
 	/*
 	if(abs(phi)>M_PI){
 		if(phi>0){
@@ -427,6 +439,9 @@ void stanley_controller(){
 	float sensitivity = 20;
 	float error_correction = atan(e/sensitivity);
 	float steer_rad=phi+error_correction;
+	if(abs(phi)<M_PI_2/4){
+		//float steer_rad=phi+error_correction;
+	}
 	/*
 	if(abs(phi)<M_PI_2/4){
 		steer_rad  = error_correction;
