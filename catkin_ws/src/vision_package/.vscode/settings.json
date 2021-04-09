@@ -60,5 +60,10 @@
         "typeinfo": "cpp",
         "variant": "cpp",
         "bit": "cpp"
-    }
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/aswath/slam_ws/devel/lib/python3/dist-packages",
+        "/home/aswath/Capstone_Project/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
 }

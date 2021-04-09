@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-list(APPEND CMAKE_PREFIX_PATH "/home/surya/Downloads/libtorch-cxx11-abi-shared-with-deps-1.8.1+cu111/libtorch")
+list(APPEND CMAKE_PREFIX_PATH "~/Downloads/libtorch-cxx11-abi-shared-with-deps-1.8.1+cu111/libtorch")
 find_package(OpenCV)
 find_package(Torch REQUIRED)
 

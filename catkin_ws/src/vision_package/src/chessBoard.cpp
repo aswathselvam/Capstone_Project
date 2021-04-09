@@ -13,10 +13,6 @@ bool g_bDrawingBox = false;
 const double CC_WIDTH = 5.4, CC_LENGTH = 8;
 double ppcm_width, ppcm_height;
 
-void transform(Point2f* src_vertices, Point2f* dst_vertices, Mat& src, Mat& dst) {
-    Mat M = getPerspectiveTransform(src_vertices, dst_vertices);
-    warpPerspective(src, dst, M, dst.size(), INTER_LINEAR, BORDER_CONSTANT);
-}
 
 void DrawRectangle(Mat& img, Rect box)
 {
@@ -104,7 +100,8 @@ int main() {
             return 0;
         }
         */
-    Mat src = cv::imread("/home/surya/Capstone_Project/catkin_ws/src/codes/assets/board.jpg");
+    string name =  getenv("USER");
+    Mat src = cv::imread("/home/"+name+"/Capstone_Project/catkin_ws/src/vision_package/assets/board.jpg");
     Size fcc(7,7);
     //Size size(1024,720);
     resize(src, src, Size(), 0.25, 0.25, INTER_CUBIC);
@@ -115,6 +112,7 @@ int main() {
     Mat tempImage,center;
 
     i = 0;
+    /*
     setMouseCallback("Src", mouse_callback, (void*)&src);
     while (1) {
         //cap.read(src);
@@ -125,23 +123,37 @@ int main() {
         if (waitKey(10) == 27)  // stop drawing rectanglge if the key is 'ESC'
             break;
     }
-    std::cout << "ppcm width: " << ppcm_width << " ppcm_height: " << ppcm_height << std::endl;
+    */
+    
+    /*
+        bottomm left: 48
+        top left: 42
+        top right: 0
+        bottom right: 6
+    */
     src_vertices[0] = corner[48];
     src_vertices[1] = corner[42];
     src_vertices[2] = corner[0];
     src_vertices[3] = corner[6];
+    float midx= src.rows/1.5;
+    float midy=src.cols/1.8;
+    int square_scale=2;
+    dst_vertices[1] = Point(midx+square_scale*50, midy-square_scale*50);
+    dst_vertices[2] = Point(midx-square_scale*50, midy-square_scale*50);
+    dst_vertices[3] = Point(midx-square_scale*50, midy+square_scale*50);
+    dst_vertices[0] = Point(midx+square_scale*50, midy+square_scale*50);
+    ppcm_width = CC_WIDTH /100;
+    ppcm_height = CC_LENGTH / 100;
+    std::cout << "ppcm width: " << ppcm_width << " ppcm_height: " << ppcm_height << std::endl;
+
     Mat M = getPerspectiveTransform(src_vertices, dst_vertices);
     std::cout << "Perspective Transform Matrix: " << M << std::endl;
     Mat dst(src.rows, src.cols, CV_8UC3);
     warpPerspective(src, dst, M, dst.size(), INTER_LINEAR, BORDER_CONSTANT);
 
-    Mat dst2(src.rows, src.cols, CV_8UC3);
-    transform(src_vertices, dst_vertices, src, dst2);
-
     drawChessboardCorners(src,fcc,Mat(corner),found);
     imshow("src", src);
     imshow("dst", dst);
-    imshow("dst2", dst2);
     cout<<corner.size()<<endl;
     for(int i=0;i<corner.size();i++) {
         cout<<corner[i]<<endl;
