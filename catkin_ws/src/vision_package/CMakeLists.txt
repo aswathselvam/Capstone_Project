@@ -14,26 +14,30 @@ find_package(Torch REQUIRED)
 
 include_directories(
   ${OpenCV_INCLUDE_DIRS}
+  ${TORCH_LIBRARIES}
 )
 
 add_executable(chessBoard src/chessBoard.cpp)
 add_executable(example-app src/example-app.cpp)
 add_executable(pytorchbas src/pytorchbas.cpp)
 add_executable(simplenn src/simplenn.cpp)
+add_executable(loadmodel src/loadmodel.cpp)
 
 target_link_libraries(chessBoard
    ${OpenCV_LIBS}
  )
-
 target_link_libraries (example-app 
    ${TORCH_LIBRARIES}
 )
-
 target_link_libraries (pytorchbas
     ${TORCH_LIBRARIES}
 )
 target_link_libraries (simplenn
     ${TORCH_LIBRARIES}
+)
+target_link_libraries (loadmodel
+  ${OpenCV_LIBS}
+  ${TORCH_LIBRARIES}
 )
 
 set_property(TARGET example-app PROPERTY CXX_STANDARD 14)
