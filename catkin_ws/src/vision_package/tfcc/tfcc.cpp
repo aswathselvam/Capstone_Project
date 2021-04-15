@@ -35,6 +35,7 @@ limitations under the License.
 // are supported.
 
 #include <fstream>
+#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -274,22 +275,34 @@ Status CheckTopLabel(const std::vector<Tensor>& outputs, int expected,
   return Status::OK();
 }
 
+/*
+std::vector<int> get_tensor_shape(tensorflow::Tensor& tensor)
+{
+    std::vector<int> shape;
+    int num_dimensions = tensor.shape().dims()
+    for(int ii_dim=0; ii_dim<num_dimensions; ii_dim++) {
+        shape.push_back(tensor.shape().dim_size(ii_dim));
+    }
+    return shape;
+}
+*/
+
 int main(int argc, char* argv[]) {
   // These are the command-line flags the program can understand.
   // They define where the graph and input data is located, and what kind of
   // input the model expects. If you train your own model, or use something
   // other than inception_v3, then you'll need to update these.
-  string image = "grace_hopper.jpg";
-  string graph = "inception_v3_2016_08_28_frozen.pb";
+  string image = "../assets/road.jpeg";
+  string graph = "frozen_graph.pb";
   string labels = "imagenet_slim_labels.txt";
-  int32 input_width = 299;
-  int32 input_height = 299;
+  int32 input_width = 128;
+  int32 input_height = 128;
   float input_mean = 0;
   float input_std = 255;
-  string input_layer = "input";
-  string output_layer = "InceptionV3/Predictions/Reshape_1";
+  string input_layer = "x:0";
+  string output_layer = "Identity:0";
   bool self_test = false;
-  string root_dir = "/home/aswath/Downloads/tensorflow/tensorflow/examples/label_image/data/";
+  string root_dir = "/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/scripts/";
   std::vector<Flag> flag_list = {
       Flag("image", &image, "image to be processed"),
       Flag("graph", &graph, "graph to be executed"),
@@ -326,6 +339,8 @@ int main(int argc, char* argv[]) {
   if (!load_graph_status.ok()) {
     LOG(ERROR) << load_graph_status;
     return -1;
+  }else{
+    std::cout<<"Done Loading graph"<<std::endl;
   }
 
   // Get the image from disk as a float array of numbers, resized and normalized
@@ -340,7 +355,6 @@ int main(int argc, char* argv[]) {
     return -1;
   }
   const Tensor& resized_tensor = resized_tensors[0];
-
   // Actually run the image through the model.
   std::vector<Tensor> outputs;
   Status run_status = session->Run({{input_layer, resized_tensor}},
@@ -348,8 +362,13 @@ int main(int argc, char* argv[]) {
   if (!run_status.ok()) {
     LOG(ERROR) << "Running model failed: " << run_status;
     return -1;
+  }else{
+    std::cout<<"Output size: "<< outputs[0].shape() << " ";
   }
+  
 
+
+/*
   // This is for automated testing to make sure we get the expected result with
   // the default settings. We know that label 653 (military uniform) should be
   // the top label for the Admiral Hopper image.
@@ -372,6 +391,7 @@ string label_path = tensorflow::io::JoinPath(root_dir, labels);
     LOG(ERROR) << "Running print failed: " << print_status;
     return -1;
   }
-
+  */
   return 0;
+
 }
