@@ -279,11 +279,9 @@ int main(int argc, char* argv[]) {
   // They define where the graph and input data is located, and what kind of
   // input the model expects. If you train your own model, or use something
   // other than inception_v3, then you'll need to update these.
-  string image = "/home/aswath/Downloads/tensorflow/tensorflow/examples/label_image/data/grace_hopper.jpg";
-  string graph =
-      "/home/aswath/Downloads/tensorflow/tensorflow/examples/label_image/data/inception_v3_2016_08_28_frozen.pb";
-  string labels =
-      "/home/aswath/Downloads/tensorflow/tensorflow/examples/label_image/data/imagenet_slim_labels.txt";
+  string image = "grace_hopper.jpg";
+  string graph = "inception_v3_2016_08_28_frozen.pb";
+  string labels = "imagenet_slim_labels.txt";
   int32 input_width = 299;
   int32 input_height = 299;
   float input_mean = 0;
@@ -291,7 +289,7 @@ int main(int argc, char* argv[]) {
   string input_layer = "input";
   string output_layer = "InceptionV3/Predictions/Reshape_1";
   bool self_test = false;
-  string root_dir = "";
+  string root_dir = "/home/aswath/Downloads/tensorflow/tensorflow/examples/label_image/data/";
   std::vector<Flag> flag_list = {
       Flag("image", &image, "image to be processed"),
       Flag("graph", &graph, "graph to be executed"),
@@ -367,9 +365,9 @@ int main(int argc, char* argv[]) {
       return -1;
     }
   }
-
+string label_path = tensorflow::io::JoinPath(root_dir, labels);
   // Do something interesting with the results we've generated.
-  Status print_status = PrintTopLabels(outputs, labels);
+  Status print_status = PrintTopLabels(outputs, label_path);
   if (!print_status.ok()) {
     LOG(ERROR) << "Running print failed: " << print_status;
     return -1;
