@@ -7,12 +7,10 @@ find_package(Eigen3)
 
 include_directories(
 ~/Downloads/tensorflow/bazel-out/k8-opt/bin
-~/Downloads/tensorflow/
-#~/Downloads/tensorflow/tensorflow
-#~/Downloads/tensorflow/third_party
-/home/aswath/.cache/bazel/_bazel_aswath/39c920a04757f746432c7b023a8d9b9f/external/com_google_protobuf/src
-/home/aswath/.cache/bazel/_bazel_aswath/39c920a04757f746432c7b023a8d9b9f/external/eigen_archive
-/home/aswath/.cache/bazel/_bazel_aswath/39c920a04757f746432c7b023a8d9b9f/external/com_google_absl
+~/Downloads/tensorflow
+~/Downloads/tensorflow/bazel-tensorflow/external/eigen_archive
+~/Downloads/tensorflow/bazel-tensorflow/external/com_google_protobuf/src
+~/Downloads/tensorflow/bazel-tensorflow/external/com_google_absl
 ${OpenCV_INCLUDE_DIRS}
 #${EIGEN3_INCLUDE_DIR}
 )
