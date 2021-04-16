@@ -335,7 +335,7 @@ int main(int argc, char* argv[]) {
     return -1;
   }
 
-  /*
+  
   // First we load and initialize the model.
   std::unique_ptr<tensorflow::Session> session;
   string graph_path = tensorflow::io::JoinPath(root_dir, graph);
@@ -346,7 +346,7 @@ int main(int argc, char* argv[]) {
   }else{
     std::cout<<"Done Loading graph"<<std::endl;
   }
-  */
+  
 
   // Get the image from disk as a float array of numbers, resized and normalized
   // to the specifications the main graph expects.
@@ -361,8 +361,10 @@ int main(int argc, char* argv[]) {
     return -1;
   }
   */
-  cv::Mat img = cv::imread("/home/aswath/Capstone_Project/catkin_ws/src/vision_package/assets/board.jpg", CV_32F);
-
+  cv::Mat img = cv::imread("/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/myvideo_Label_100.jpg", CV_32FC3);
+  cv::resize(img, img, cv::Size(128,128));
+  cv::imshow("img", img);
+  cv::waitKey(0);
   tensorflow::Tensor resized_tensor(tensorflow::DT_FLOAT, tensorflow::TensorShape({1,input_height,input_width,3}));
   // allocate a Tensor
   // get pointer to memory for that Tensor
@@ -370,11 +372,11 @@ int main(int argc, char* argv[]) {
   int arrsize = input_height * input_height * 3;
   cv::Mat temp;
 
-    img.convertTo(temp, CV_32F);
+    img.convertTo(temp, CV_32FC3);
     float* pp = temp.ptr<float>();
     std::copy(pp, pp + arrsize, p );
   
-  //std::cout<<"REsized tensor: "<<resized_tensors.size() <<std::endl;
+  std::cout<<"REsized tensor: "<<resized_tensor.shape() <<std::endl;
   auto input_tensor=  resized_tensor.tensor<float, 4>();
   for(int r=100; r<102;r++){
     for(int c=45; c<50; c++){
@@ -389,7 +391,7 @@ int main(int argc, char* argv[]) {
   std::vector<Tensor> outputs;
   
   //clock_t t1 = clock();
-  /*
+  
   Status run_status = session->Run({{input_layer, resized_tensor}},{output_layer}, {}, &outputs);
   std::chrono::high_resolution_clock::time_point start_inference = std::chrono::high_resolution_clock::now();
 
@@ -418,7 +420,7 @@ int main(int argc, char* argv[]) {
         //float f = finalOutputTensor(0, b, i, 0);
         float f =  outputs[0].tensor<float_t, 4>()(0, r, c, 0);
         mask.at<float>(r, c) = f;
-        if(f<min){
+        if(f<min && f>0){
           min=f;
         }
         //std::cout << r << "th output for class "<<c<<" is "<< f <<std::endl; 
@@ -428,8 +430,8 @@ int main(int argc, char* argv[]) {
 
 
     mask = mask/min;
-    //std::cout<<"Mask: "<<mask;
-    mask = mask*150;
+    std::cout<<"Mask: "<<mask;
+    //mask = mask*150;
     cv::Mat mask8;
 
     mask.convertTo(mask8, CV_8UC1);
@@ -439,7 +441,7 @@ int main(int argc, char* argv[]) {
     cv::waitKey(0);
 
   }
-  */
+  
 
   //float* ptr = outputs.at<float>().data();  
   //cv::Mat mat = cv::Mat(128, 128, CV_8UC3, ptr);
