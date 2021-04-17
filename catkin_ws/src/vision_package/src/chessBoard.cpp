@@ -10,7 +10,7 @@ int i;
 Rect g_rectangle;
 bool g_bDrawingBox = false;
 
-const double CC_WIDTH = 5.4, CC_LENGTH = 8;
+const double CC_WIDTH = 20, CC_LENGTH = 20;
 double ppcm_width, ppcm_height;
 
 
@@ -103,11 +103,16 @@ int main() {
     string name =  getenv("USER");
     Mat src = cv::imread("/home/"+name+"/Capstone_Project/catkin_ws/src/vision_package/assets/board.jpg");
     Size fcc(7,7);
-    //Size size(1024,720);
-    resize(src, src, Size(), 0.25, 0.25, INTER_CUBIC);
+    //resize(src, src, Size(), 0.25, 0.25, INTER_CUBIC);
+    resize(src, src, Size(1000,1000));
+    Point initial_size(src.rows,src.cols); 
     vector<Point2f> corner;
     bool found = findChessboardCorners(src,fcc,corner);
-    std::cout << src.rows << " cols: " << src.cols << std::endl;
+    Size target_size(128,128);
+    resize(src,src, target_size);
+    Point scale(target_size.width/initial_size.x, target_size.height/initial_size.y);
+
+    std::cout << "Final occupancy generation candidate image: "<<src.rows << " cols: " << src.cols << std::endl;
     imshow("Src", src);
     Mat tempImage,center;
 
@@ -131,26 +136,34 @@ int main() {
         top right: 0
         bottom right: 6
     */
-    src_vertices[0] = corner[48];
-    src_vertices[1] = corner[42];
-    src_vertices[2] = corner[0];
-    src_vertices[3] = corner[6];
-    float midx= src.rows/1.5;
-    float midy=src.cols/1.8;
-    int square_scale=2;
-    dst_vertices[1] = Point(midx+square_scale*50, midy-square_scale*50);
-    dst_vertices[2] = Point(midx-square_scale*50, midy-square_scale*50);
-    dst_vertices[3] = Point(midx-square_scale*50, midy+square_scale*50);
-    dst_vertices[0] = Point(midx+square_scale*50, midy+square_scale*50);
-    ppcm_width = CC_WIDTH /100;
-    ppcm_height = CC_LENGTH / 100;
+    src_vertices[0] = corner[48]*0.128;
+    src_vertices[1] = corner[42]*0.128;
+    src_vertices[2] = corner[0]*0.128;
+    src_vertices[3] = corner[6]*0.128;
+    float midx= src.cols/2;
+    int square_scale=40;
+    float midy=src.rows-square_scale;
+
+    //X axis- horizontal; Y axis- vertical
+    dst_vertices[1] = Point(midx-square_scale, midy-square_scale);
+    dst_vertices[2] = Point(midx+square_scale, midy-square_scale);
+    dst_vertices[3] = Point(midx+square_scale, midy+square_scale);
+    dst_vertices[0] = Point(midx-square_scale, midy+square_scale);
+    ppcm_width = CC_WIDTH /(square_scale*2);
+    ppcm_height = CC_LENGTH /( square_scale*2);
     std::cout << "ppcm width: " << ppcm_width << " ppcm_height: " << ppcm_height << std::endl;
 
+
     Mat M = getPerspectiveTransform(src_vertices, dst_vertices);
+    
+    //cv::Mat_<double> M(3,3);
+    //M << 0.4673847726070066, 2.740971070200859, 224.895161512139,
+    //-0.137309303776736, 5.090761693240268, 356.2619469772989,
+    //-0.0001959789858882858, 0.005527060989712946, 1;
     std::cout << "Perspective Transform Matrix: " << M << std::endl;
     Mat dst(src.rows, src.cols, CV_8UC3);
     warpPerspective(src, dst, M, dst.size(), INTER_LINEAR, BORDER_CONSTANT);
-
+    cout<<"Final homography image: rows "<<dst.rows << "cols" <<dst.cols;
     drawChessboardCorners(src,fcc,Mat(corner),found);
     imshow("src", src);
     imshow("dst", dst);
