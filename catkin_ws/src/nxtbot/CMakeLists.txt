@@ -168,7 +168,11 @@ endif()
 include_directories(
   include
   "/home/aswath/Downloads/nxtpp-master/include"
-#  "/home/aswath/Capstone_Project/catkin_ws/src/cv_bridge/include"
+  ~/Downloads/tensorflow/bazel-out/k8-opt/bin
+  ~/Downloads/tensorflow
+  ~/Downloads/tensorflow/bazel-tensorflow/external/eigen_archive
+  ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_protobuf/src
+  ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_absl
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
@@ -176,6 +180,10 @@ include_directories(
   ${OMPL_INCLUDE_DIRS}
   ${fcl_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+)
+
+set(LIBS
+  ~/Downloads/tensorflow/bazel-out/k8-opt/bin/tensorflow/libtensorflow_cc.so
 )
 
 ## Declare a C++ library
@@ -225,6 +233,7 @@ include_directories(
    ${PCL_LIBRARIES}
    ${fcl_LIBRARIES}
    cv_bridge
+   ${LIBS}
  )
 
  target_link_libraries(octomap_trial

@@ -24,6 +24,7 @@
 
 #include "octomap_header.h"
 #include "image_to_grid.h"
+#include "tf.h"
 #include <cv_bridge/cv_bridge.h>
 
 using namespace std;
@@ -311,6 +312,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
       ROS_ERROR("cv_bridge exception: %s", e.what());
       return;
     }
+
 
     // Update GUI Window
     //cv::imshow("OPENCV_WINDOW", cv_ptr->image);
@@ -704,6 +706,14 @@ void refresh_Vt(Eigen::MatrixXd* Vt) {
 }
 
 
+void getLocation(){
+
+}
+
+void getOTP(){
+	
+}
+
 int main(int argc, char** argv) {
 
 	RAD_PER_TICK = ( 2.0* M_PI / TICKS);
@@ -763,6 +773,10 @@ int main(int argc, char** argv) {
 	next_node.y=0.10;
 
 	fixed_frame= "my_frame";
+	
+	float geo_x; geo_y;
+	getLocation(); 
+	int OTP=getOTP();
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");

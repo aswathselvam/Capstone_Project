@@ -36,13 +36,13 @@ int main(int argc, char* argv[])
         // Publish using a message pointer.
 
         auto msg = mqtt::make_message(TOPIC, PAYLOAD1);
-        msg->set_qos(mqtt::GRANTED_QOS_0);
+        msg->set_qos(mqtt::GRANTED_QOS_1);
 
         cli.publish(msg);
 
         // Now try with itemized publish.
 
-        cli.publish(TOPIC, PAYLOAD2, strlen(PAYLOAD2), 0, false);
+        //cli.publish(TOPIC, PAYLOAD2, strlen(PAYLOAD2), 2, false);
 
         // Disconnect
 
