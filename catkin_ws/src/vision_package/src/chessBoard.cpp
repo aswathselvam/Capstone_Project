@@ -10,7 +10,7 @@ int i;
 Rect g_rectangle;
 bool g_bDrawingBox = false;
 
-const double CC_WIDTH = 20, CC_LENGTH = 20;
+const double CC_WIDTH = 18, CC_LENGTH = 18;
 double ppcm_width, ppcm_height;
 
 
@@ -19,7 +19,11 @@ void DrawRectangle(Mat& img, Rect box)
     //Draw a rectangle with random color
     rectangle(img, box.tl(), box.br(), Scalar(100, 150, 100));
 }
-
+void CallBackFn(int event,int x,int y,int flags,void *userdata) {
+    if(event==EVENT_LBUTTONDOWN){
+        cout<<"("<<x<<","<<y<<")"<<endl;
+    }
+}
 void mouse_callback(int event, int x, int y, int flag, void* param) {
     Mat& image = *(cv::Mat*)param;
     switch (event) {
@@ -141,7 +145,7 @@ int main() {
     src_vertices[2] = corner[0]*0.128;
     src_vertices[3] = corner[6]*0.128;
     float midx= src.cols/2;
-    int square_scale=40;
+    int square_scale=36;
     float midy=src.rows-square_scale;
 
     //X axis- horizontal; Y axis- vertical
@@ -150,7 +154,7 @@ int main() {
     dst_vertices[3] = Point(midx+square_scale, midy+square_scale);
     dst_vertices[0] = Point(midx-square_scale, midy+square_scale);
     ppcm_width = CC_WIDTH /(square_scale*2);
-    ppcm_height = CC_LENGTH /( square_scale*2);
+    ppcm_height = CC_LENGTH /(square_scale*2);
     std::cout << "ppcm width: " << ppcm_width << " ppcm_height: " << ppcm_height << std::endl;
 
 
@@ -166,10 +170,14 @@ int main() {
     cout<<"Final homography image: rows "<<dst.rows << "cols" <<dst.cols;
     drawChessboardCorners(src,fcc,Mat(corner),found);
     imshow("src", src);
+    namedWindow("dst");
+    
     imshow("dst", dst);
+    setMouseCallback("dst",CallBackFn,NULL);
     cout<<corner.size()<<endl;
     for(int i=0;i<corner.size();i++) {
         cout<<corner[i]<<endl;
     }
     waitKey();
 }
+

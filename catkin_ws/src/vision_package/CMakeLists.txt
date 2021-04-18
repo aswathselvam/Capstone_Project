@@ -14,6 +14,7 @@ find_package(Torch REQUIRED)
 
 include_directories(
   ${OpenCV_INCLUDE_DIRS}
+  ${TORCH_LIBRARIES}
 )
 
 add_executable(chessBoard src/chessBoard.cpp)
