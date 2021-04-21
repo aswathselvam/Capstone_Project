@@ -305,7 +305,7 @@ int main(int argc, char* argv[]) {
   string input_layer = "x:0";
   string output_layer = "Identity:0";
   bool self_test = false;
-  string root_dir = "/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/scripts/";
+  string root_dir = "/home/aswath/Capstone_Project/catkin_ws/src/vision_package/script/";
   std::vector<Flag> flag_list = {
       Flag("image", &image, "image to be processed"),
       Flag("graph", &graph, "graph to be executed"),
@@ -361,116 +361,99 @@ int main(int argc, char* argv[]) {
     return -1;
   }
   */
-  cv::Mat img = cv::imread("/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/myvideo_Label_100.jpg", CV_32FC3);
-  cv::resize(img, img, cv::Size(128,128));
-  cv::imshow("img", img);
-  cv::waitKey(0);
-  tensorflow::Tensor resized_tensor(tensorflow::DT_FLOAT, tensorflow::TensorShape({1,input_height,input_width,3}));
-  // allocate a Tensor
-  // get pointer to memory for that Tensor
-  float *p = resized_tensor.flat<float>().data();
-  int arrsize = input_height * input_height * 3;
-  cv::Mat temp;
+
+  cv::VideoCapture capture("/home/aswath/Videos/myvideo/s8.mp4");
+  //cv::Mat img = cv::imread("/home/aswath/Capstone_Project/catkin_ws/src/nxtbot/assets/myvideo_Label_100.jpg", CV_32FC3);
+  cv::Mat img;
+  std::vector<Tensor> outputs;
+  Status run_status;
+  if( !capture.isOpened() )
+      throw "Error when reading steam_avi";
+
+  for( ; ; )
+  {
+    capture >> img;
+    if(img.empty())
+        break;
+
+    cv::resize(img, img, cv::Size(128,128));
+    cv::imshow("img", img);
+    tensorflow::Tensor resized_tensor(tensorflow::DT_FLOAT, tensorflow::TensorShape({1,input_height,input_width,3}));
+    // allocate a Tensor
+    // get pointer to memory for that Tensor
+    float *p = resized_tensor.flat<float>().data();
+    int arrsize = input_height * input_height * 3;
+    cv::Mat temp;
 
     img.convertTo(temp, CV_32FC3);
     float* pp = temp.ptr<float>();
     std::copy(pp, pp + arrsize, p );
-  
-  std::cout<<"REsized tensor: "<<resized_tensor.shape() <<std::endl;
-  auto input_tensor=  resized_tensor.tensor<float, 4>();
-  for(int r=100; r<102;r++){
-    for(int c=45; c<50; c++){
-        //float f = finalOutputTensor(0, b, i, 0);
-        //input_tensor(0, r, c, 0) = 4;
-        //mask.at<float>(r, c) = f;
-
-        std::cout << r << "th output for class "<<c<<" is "<< input_tensor(0, r, c, 0) <<std::endl; 
-    }
-    }
-  // Actually run the image through the model.
-  std::vector<Tensor> outputs;
-  
-  //clock_t t1 = clock();
-  
-  Status run_status = session->Run({{input_layer, resized_tensor}},{output_layer}, {}, &outputs);
-  std::chrono::high_resolution_clock::time_point start_inference = std::chrono::high_resolution_clock::now();
-
-  run_status = session->Run({{input_layer, resized_tensor}},{output_layer}, {}, &outputs);
-  
-  //double cpu_time_used = ((double) (clock() - t1)) / CLOCKS_PER_SEC;
-
-  //std::cout<<"Time taken: "<< cpu_time_used << std::endl; 
-  std::chrono::high_resolution_clock::time_point stop_inference = std::chrono::high_resolution_clock::now();
-  auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(stop_inference - start_inference);
-  std::cout<<"Time take(us): "<< time_span.count()<<std::endl;
-  //auto time  = stop_inference - start_inference;
-  //std::cout<<"\nTime taken(ms): "<<time/std::chrono::milliseconds(1)<<std::endl; 
-
-  if (!run_status.ok()) {
-    LOG(ERROR) << "Running model failed: " << run_status;
-    return -1;
-  }else{
-    std::cout<<"Output size: "<< outputs[0].shape() << " "<< outputs.size() << " " <<typeid(outputs[0]).name();
     
-    auto finalOutputTensor  = outputs[0].tensor<float, 4>();
-    cv::Mat mask = cv::Mat::zeros(128, 128, CV_32FC1);
-    float min = 9999;
-    for(int r=0; r<128;r++){
-    for(int c=0; c<128; c++){
-        //float f = finalOutputTensor(0, b, i, 0);
-        float f =  outputs[0].tensor<float_t, 4>()(0, r, c, 0);
-        mask.at<float>(r, c) = f;
-        if(f<min && f>0){
-          min=f;
-        }
-        //std::cout << r << "th output for class "<<c<<" is "<< f <<std::endl; 
-    }
-    }
-                //std::cout<<"Mask: "<<mask;
+    //std::cout<<"REsized tensor: "<<resized_tensor.shape() <<std::endl;
+    auto input_tensor=  resized_tensor.tensor<float, 4>();
+    /*
+    for(int r=100; r<102;r++){
+      for(int c=45; c<50; c++){
+          //float f = finalOutputTensor(0, b, i, 0);
+          //input_tensor(0, r, c, 0) = 4;
+          //mask.at<float>(r, c) = f;
 
+          std::cout << r << "th row and "<<c<<" th col is "<< input_tensor(0, r, c, 1) <<std::endl; 
+      }
+      }
+    */
 
-    mask = mask/min;
-    std::cout<<"Mask: "<<mask;
-    //mask = mask*150;
-    cv::Mat mask8;
+    // Actually run the image through the model.    
+    //clock_t t1 = clock();
+    
+    std::chrono::high_resolution_clock::time_point start_inference = std::chrono::high_resolution_clock::now();
+    run_status = session->Run({{input_layer, resized_tensor}},{output_layer}, {}, &outputs);
+    
+    //double cpu_time_used = ((double) (clock() - t1)) / CLOCKS_PER_SEC;
 
-    mask.convertTo(mask8, CV_8UC1);
-    //std::cout<<mask8;
+    //std::cout<<"Time taken: "<< cpu_time_used << std::endl; 
+    std::chrono::high_resolution_clock::time_point stop_inference = std::chrono::high_resolution_clock::now();
+    auto time_span = std::chrono::duration_cast<std::chrono::microseconds>(stop_inference - start_inference);
+    std::cout<<"Time take(us): "<< time_span.count()<<std::endl;
+    //auto time  = stop_inference - start_inference;
+    //std::cout<<"\nTime taken(ms): "<<time/std::chrono::milliseconds(1)<<std::endl; 
 
-    cv::imshow("MASK", mask8);
-    cv::waitKey(0);
-
-  }
-  
-
-  //float* ptr = outputs.at<float>().data();  
-  //cv::Mat mat = cv::Mat(128, 128, CV_8UC3, ptr);
-
-
-/*
-  // This is for automated testing to make sure we get the expected result with
-  // the default settings. We know that label 653 (military uniform) should be
-  // the top label for the Admiral Hopper image.
-  if (self_test) {
-    bool expected_matches;
-    Status check_status = CheckTopLabel(outputs, 653, &expected_matches);
-    if (!check_status.ok()) {
-      LOG(ERROR) << "Running check failed: " << check_status;
+    if (!run_status.ok()) {
+      LOG(ERROR) << "Running model failed: " << run_status;
       return -1;
-    }
-    if (!expected_matches) {
-      LOG(ERROR) << "Self-test failed!";
-      return -1;
+    }else{
+      //std::cout<<"Output size: "<< outputs[0].shape() << " "<< outputs.size() << " " <<typeid(outputs[0]).name();
+      
+      auto finalOutputTensor  = outputs[0].tensor<float, 4>();
+      cv::Mat mask = cv::Mat::zeros(128, 128, CV_32FC1);
+      float min = 9999;
+      for(int r=0; r<128;r++){
+      for(int c=0; c<128; c++){
+          //float f = finalOutputTensor(0, b, i, 0);
+          float f =  outputs[0].tensor<float_t, 4>()(0, r, c, 1);
+          mask.at<float>(r, c) = f;
+          if(f<min && f>0){
+            min=f;
+          }
+          //std::cout << r << "th output for class "<<c<<" is "<< f <<std::endl; 
+      }
+      }
+
+      //std::cout<<"Mask: "<<mask;
+
+
+      //mask = mask/min;
+      //std::cout<<"Mask: "<<mask;
+      //break;
+      mask = mask*200;
+      cv::Mat mask8;
+      mask.convertTo(mask8, CV_8UC1);
+      //std::cout<<mask8;
+
+      cv::imshow("MASK", mask8);
+      cv::waitKey(1);
     }
   }
-string label_path = tensorflow::io::JoinPath(root_dir, labels);
-  // Do something interesting with the results we've generated.
-  Status print_status = PrintTopLabels(outputs, label_path);
-  if (!print_status.ok()) {
-    LOG(ERROR) << "Running print failed: " << print_status;
-    return -1;
-  }
-  */
   return 0;
 
 }
