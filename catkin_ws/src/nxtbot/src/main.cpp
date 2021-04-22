@@ -24,6 +24,7 @@
 
 #include "octomap_header.h"
 #include "image_to_grid.h"
+#include "mqtt_subscribe.cpp"
 #include "tf.h"
 #include <cv_bridge/cv_bridge.h>
 
@@ -706,14 +707,6 @@ void refresh_Vt(Eigen::MatrixXd* Vt) {
 }
 
 
-void getLocation(){
-
-}
-
-void getOTP(){
-	
-}
-
 int main(int argc, char** argv) {
 
 	RAD_PER_TICK = ( 2.0* M_PI / TICKS);
@@ -774,9 +767,8 @@ int main(int argc, char** argv) {
 
 	fixed_frame= "my_frame";
 	
-	float geo_x; geo_y;
-	getLocation(); 
-	int OTP=getOTP();
+	float geo_x, geo_y;
+	int* loc=getLocation();
 
 	// rosrun tf static_transform_publisher 0 0 0 0 0 0 1 map my_frame 10
 	ros::init(argc, argv, "convert2angles");
