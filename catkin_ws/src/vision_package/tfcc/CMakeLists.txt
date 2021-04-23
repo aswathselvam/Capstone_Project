@@ -11,11 +11,14 @@ include_directories(
 ~/Downloads/tensorflow/bazel-tensorflow/external/eigen_archive
 ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_protobuf/src
 ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_absl
+~/Downloads/flatbuffers/include
+/home/surya/Downloads/tensorflow/tensorflow/lite
 ${OpenCV_INCLUDE_DIRS}
-#${EIGEN3_INCLUDE_DIR}
+#${EIGEN3_INCLUDE_DIR}/home/surya/Downloads/tensorflow/tensorflow/lite
 )
 
 add_executable(tfcc tfcc.cpp)
+add_executable(tflite tflite.cpp)
 
 set(LIBS
 ~/Downloads/tensorflow/bazel-out/k8-opt/bin/tensorflow/libtensorflow_cc.so
@@ -24,5 +27,10 @@ ${OpenCV_LIBS}
 )
 
 target_link_libraries(tfcc
+${LIBS}
+)
+
+target_link_libraries(tflite
+tensorflow-lite
 ${LIBS}
 )
