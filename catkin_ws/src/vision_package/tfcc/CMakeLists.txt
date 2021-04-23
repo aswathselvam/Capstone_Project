@@ -3,7 +3,23 @@ PROJECT(tfcc)
 set(CMAKE_CXX_STANDARD 11)
 
 find_package(OpenCV)
-find_package(Eigen3)
+#find_package(Eigen3)
+
+set(TENSORFLOW_SOURCE_DIR "" CACHE PATH
+  "Directory that contains the TensorFlow project"
+)
+if(NOT TENSORFLOW_SOURCE_DIR)
+  get_filename_component(TENSORFLOW_SOURCE_DIR
+    "~/Downloads/tensorflow"
+    ABSOLUTE
+  )
+endif()
+
+add_subdirectory(
+  "${TENSORFLOW_SOURCE_DIR}/tensorflow/lite"
+  "${CMAKE_CURRENT_BINARY_DIR}/tensorflow-lite"
+  EXCLUDE_FROM_ALL
+)
 
 include_directories(
 ~/Downloads/tensorflow/bazel-out/k8-opt/bin
@@ -12,9 +28,8 @@ include_directories(
 ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_protobuf/src
 ~/Downloads/tensorflow/bazel-tensorflow/external/com_google_absl
 ~/Downloads/flatbuffers/include
-/home/surya/Downloads/tensorflow/tensorflow/lite
 ${OpenCV_INCLUDE_DIRS}
-#${EIGEN3_INCLUDE_DIR}/home/surya/Downloads/tensorflow/tensorflow/lite
+#${EIGEN3_INCLUDE_DIR}
 )
 
 add_executable(tfcc tfcc.cpp)
@@ -33,4 +48,5 @@ ${LIBS}
 target_link_libraries(tflite
 tensorflow-lite
 ${LIBS}
+${CMAKE_DL_LIBS}
 )
