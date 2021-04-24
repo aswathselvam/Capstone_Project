@@ -25,8 +25,9 @@
 #include "octomap_header.h"
 #include "image_to_grid.h"
 #include "mqtt_subscribe.cpp"
-#include "tf.h"
-#include <cv_bridge/cv_bridge.h>
+#include "tensorflow_inference.h"
+#include "cv_bridge/cv_bridge.h"
+#include "myRRG.h"
 
 using namespace std;
 using namespace cv;
@@ -113,6 +114,7 @@ Mat mask;
 Mat dest;
 Mat Homo;
 cuda::GpuMat gpumask_out;
+SSInference ssinference;
 const double PPCM_WIDTH = 0.0377622, PPCM_HEIGHT=0.0487805;
 
 void plan();
@@ -315,28 +317,9 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
     }
 
 
-    // Update GUI Window
-    //cv::imshow("OPENCV_WINDOW", cv_ptr->image);
 	Mat img = cv_ptr->image;
-	dest = Mat::zeros(img.rows, img.cols, CV_8UC1);
-	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
-
-	grow(img, dest, mask, Point(img.cols/2, img.rows-10), 20);
-	mask = mask * 255;
-	//warpPerspective(img, Homo, HomographyMatrix, img.size());
-	//imshow("Image", Homo);
-	Mat original_mask;
-	//gpumask_out = cuda::GpuMat(mask);
-	//cuda::GpuMat maskk = cuda::GpuMat(mask);
-	warpPerspective(mask, original_mask, HomographyMatrix, mask.size());		
-	//gpumask_out.download(mask);
-	cv::resize(original_mask, mask, cv::Size(), 0.25, 0.25);
-	//imshow("Perspective Mask", mask);
-	//waitKey(1);
-	float x_;
-	float y_;
-	int val=0;
-	
+	Mat mask = ssinference.getMask(img);
+	int val = 0;float x_,y_;
 	int min=9999,max=-9999;
 	for (int index_x = -mask.rows/2; index_x < mask.rows/2; index_x++)
 	{
@@ -353,7 +336,7 @@ void cameraCallback(const sensor_msgs::ImageConstPtr& msg){
 			octomap::point3d endpoint((float)x_ * 0.01f* 1, (float)y_ * 0.01f * 1, 0.0f);
 			val=mask.at<char>((int)(index_x+mask.rows/2),(int)(index_y+mask.cols/2));
 
-			if (val<0){
+			if (val>0){
 				my_octree.updateNode(endpoint, false); 
 			}else{
 				count_of_occupied_cells+=1;
