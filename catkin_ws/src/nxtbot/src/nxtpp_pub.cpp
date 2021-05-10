@@ -4,6 +4,7 @@
 #include "NXT++.h"
 #include <ros/ros.h>
 #include <std_msgs/Int16.h>
+#include <geometry_msgs/Twist.h>
 #include <iostream>
 
 using namespace std;
@@ -26,9 +27,16 @@ void resetOdoCallback(const std_msgs::Int16::ConstPtr& msg){
     NXT::Motor::ResetRotationCount(OUT_B,false);
 }
 
+void teleOpCallback(const geometry_msgs::Twist& msg){
+   NXT::Motor::GoTo(OUT_B, 40, NXT::Motor::GetRotationCount(OUT_B)+msg.linear.x, false);
+   NXT::Motor::GoTo(OUT_C, 40, NXT::Motor::GetRotationCount(OUT_C)+msg.angular.z, true);
+}
+
 int main(int argc, char** argv)
 {
-    cout<<NXT::Open()<<endl;
+    if(!NXT::Open()){
+        return 0;
+    }
     cout<<"\nBattery level"<<NXT::BatteryLevel()<<endl;
     NXT::Motor::ResetRotationCount(OUT_C,false);
     NXT::Motor::ResetRotationCount(OUT_B,false);
@@ -38,7 +46,8 @@ int main(int argc, char** argv)
     ros::Subscriber resetOdo = n.subscribe("nxt/reset_odo", 1, resetOdoCallback);
     ros::Subscriber subOdo = n.subscribe("nxt/steer_motor", 1, steerCallback);
 	ros::Subscriber subDrive = n.subscribe("nxt/drive_motor", 1, driveCallback);
-	
+	ros::Subscriber subTeleOp = n.subscribe("cmd_vel", 1, teleOpCallback);
+
     pub_odo_steer = n.advertise<std_msgs::Int16>("nxt/odo_steer",1);
 	pub_odo_drive = n.advertise<std_msgs::Int16>("nxt/odo_drive",1);
 	ros::Rate loop_rate(10);
