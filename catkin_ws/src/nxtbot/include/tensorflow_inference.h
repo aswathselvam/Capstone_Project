@@ -51,10 +51,18 @@ class SSInference{
   std::string username;
   string root_dir;
 
+  std::vector<Tensor> outputs;
+  std::chrono::high_resolution_clock::time_point start_inference;
+  std::chrono::high_resolution_clock::time_point stop_inference ;
+  std::chrono::microseconds time_span;
+  tensorflow::Tensor resized_tensor;
+  Status run_status;
+  std::unique_ptr<tensorflow::Session> session;
+
+
 public:
   SSInference();
-cv::Mat getMask(cv::Mat img);
-Status LoadGraph(const string& graph_file_name,
-                  std::unique_ptr<tensorflow::Session>* session) ;
+  cv::Mat getMask(cv::Mat img);
+  void LoadGraph();
 };
 
