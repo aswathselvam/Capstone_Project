@@ -29,6 +29,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(octomap REQUIRED)
 find_package(ompl REQUIRED)
 find_package(fcl REQUIRED)
+find_package(PahoMqttCpp REQUIRED)
 
 roslaunch_add_file_check(launch)
 find_package(cv_bridge)
@@ -182,8 +183,12 @@ include_directories(
   ${PCL_INCLUDE_DIRS}
 )
 
+add_library(semantic_segmentation src/tensorflow_inference.cpp)
+
 set(LIBS
   ~/Downloads/tensorflow/bazel-out/k8-opt/bin/tensorflow/libtensorflow_cc.so
+  PahoMqttCpp::paho-mqttpp3
+  #semantic_segmentation
 )
 
 ## Declare a C++ library
@@ -200,7 +205,7 @@ set(LIBS
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/main.cpp)
- add_executable(main src/main.cpp)
+ add_executable(main src/main.cpp src/tensorflow_inference.cpp)#src/RRG.cpp)
  add_executable(octomap_trial src/octomap_trial.cpp)
  add_executable(occupancy_image src/occupancy_image.cpp)
  add_executable(image_to_grid src/image_to_grid.cpp)
