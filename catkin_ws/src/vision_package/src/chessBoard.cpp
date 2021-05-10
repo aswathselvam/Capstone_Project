@@ -87,9 +87,70 @@ void mouse_callback(int event, int x, int y, int flag, void* param) {
     }
 }
 
+
+void rotateImage(const Mat &input, double roll, double pitch, double yaw,
+                 double dx, double dy, double dz, double f, double cx, double cy)
+  {
+    // Camera Calibration Intrinsics Matrix
+    Mat A2 = (Mat_<double>(3,4) <<
+              f, 0, cx, 0,
+              0, f, cy, 0,
+              0, 0, 1,  0);
+    // Inverted Camera Calibration Intrinsics Matrix
+    Mat A1 = (Mat_<double>(4,3) <<
+              1/f, 0,   -cx/f,
+              0,   1/f, -cy/f,
+              0,   0,   0,
+              0,   0,   1);
+    // Rotation matrices around the X, Y, and Z axis
+    Mat RX = (Mat_<double>(4, 4) <<
+              1, 0,         0,          0,
+              0, cos(roll), -sin(roll), 0,
+              0, sin(roll), cos(roll),  0,
+              0, 0,         0,          1);
+    Mat RY = (Mat_<double>(4, 4) <<
+              cos(pitch),  0, sin(pitch), 0,
+              0,           1, 0,          0,
+              -sin(pitch), 0, cos(pitch), 0,
+              0,           0, 0,          1);
+    Mat RZ = (Mat_<double>(4, 4) <<
+              cos(yaw), -sin(yaw), 0, 0,
+              sin(yaw),  cos(yaw), 0, 0,
+              0,          0,       1, 0,
+              0,          0,       0, 1);
+    // Translation matrix
+    Mat T = (Mat_<double>(4, 4) <<
+             1, 0, 0, dx,
+             0, 1, 0, dy,
+             0, 0, 1, dz,
+             0, 0, 0, 1);
+    // Compose rotation matrix with (RX, RY, RZ)
+    Mat R = RZ * RY * RX;
+    // Final transformation matrix
+    Mat H = A2 * (T * (R * A1));
+    // Apply matrix transformation
+    Mat output;
+    cout<<H;
+    warpPerspective(input, output, H, input.size(), INTER_LANCZOS4);
+
+    double translateColumn, translateRow;
+    translateColumn = 0.0;
+    translateRow = -H.at<double>(1,2)/H.at<double>(1,1);   
+
+    Mat translationMatrix = (Mat_<double>(2, 3) << 1, 0, translateColumn, 0, 1, translateRow);
+
+    Mat translatedImage;
+    warpAffine(output, translatedImage, translationMatrix , output.size());
+
+    cv::imshow("op",translatedImage);
+    setMouseCallback("op", mouse_callback, (void*)&translatedImage);
+    cv::waitKey(0);
+}
+
 int main() {
     //Mat src;
     VideoCapture cap;
+    Mat src;
     /*
         cap.open("http://192.168.29.132:8080/video", cv::CAP_ANY);
         // check if we succeeded
@@ -98,17 +159,28 @@ int main() {
             return -1;
         }
         cap.read(src);
+        cv::imshow("src",src);
+        cv::waitKey(0);
         // check if we succeeded
         if (src.empty()) {
             std::cout << "ERROR! blank frame grabbed\n";
             return 0;
         }
-        */
+    */
+        
     string name =  getenv("USER");
-    Mat src = cv::imread("/home/"+name+"/Capstone_Project/catkin_ws/src/vision_package/assets/board.jpg");
+    src = cv::imread("/home/"+name+"/Capstone_Project/catkin_ws/src/vision_package/assets/board.jpg");
     Size fcc(7,7);
     //resize(src, src, Size(), 0.25, 0.25, INTER_CUBIC);
-    resize(src, src, Size(1000,1000));
+    resize(src, src, Size(128,128));
+    
+
+
+    rotateImage(src, 0.7/64, 0.0, 0.0,
+                 0.0, 0.0, 1.0, 1.0, 64, 64);
+
+    return 0;
+    
     Point initial_size(src.rows,src.cols); 
     vector<Point2f> corner;
     bool found = findChessboardCorners(src,fcc,corner);
@@ -179,5 +251,6 @@ int main() {
         cout<<corner[i]<<endl;
     }
     waitKey();
+    
 }
 
