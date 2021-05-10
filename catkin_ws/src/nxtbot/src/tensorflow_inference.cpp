@@ -13,25 +13,36 @@ SSInference::SSInference(){
   input_layer = "x:0";
   output_layer = "Identity:0";
   self_test = false;
+
+  resized_tensor = tensorflow::Tensor(tensorflow::DT_FLOAT, tensorflow::TensorShape({1,input_height,input_width,3}) );
+  LoadGraph();
 }
 
 // Reads a model graph definition from disk, and creates a session object you
 // can use to run it.
-Status SSInference::LoadGraph(const string& graph_file_name,
-                std::unique_ptr<tensorflow::Session>* session) {
+void SSInference::LoadGraph() {
   tensorflow::GraphDef graph_def;
+  
+   // First we load and initialize the model.
+  string graph_file_name = tensorflow::io::JoinPath(this->root_dir, this->graph);
+
   Status load_graph_status =
       ReadBinaryProto(tensorflow::Env::Default(), graph_file_name, &graph_def);
   if (!load_graph_status.ok()) {
-    return tensorflow::errors::NotFound("Failed to load compute graph at '",
-                                        graph_file_name, "'");
+    //return tensorflow::errors::NotFound("Failed to load compute graph at '", graph_file_name, "'");
   }
-  session->reset(tensorflow::NewSession(tensorflow::SessionOptions()));
-  Status session_create_status = (*session)->Create(graph_def);
+
+  auto options = tensorflow::SessionOptions();
+  options.config.mutable_gpu_options()->set_per_process_gpu_memory_fraction(0.2);
+  options.config.mutable_gpu_options()->set_allow_growth(true);
+  session.reset(tensorflow::NewSession(options));
+  Status session_create_status = session->Create(graph_def);
   if (!session_create_status.ok()) {
-    return session_create_status;
+    LOG(ERROR) << load_graph_status;
+    //return session_create_status;
   }
-  return Status::OK();
+  std::cout<<"Done Loading graph"<<std::endl;
+  //return Status::OK();
 }
 
 cv::Mat SSInference::getMask(cv::Mat img) {
@@ -40,28 +51,11 @@ cv::Mat SSInference::getMask(cv::Mat img) {
   // input the model expects. If you train your own model, or use something
   // other than inception_v3, then you'll need to update these.
 
-  // First we load and initialize the model.
-  std::unique_ptr<tensorflow::Session> session;
-  string graph_path = tensorflow::io::JoinPath(this->root_dir, this->graph);
-  Status load_graph_status = LoadGraph(graph_path, &session);
-  if (!load_graph_status.ok()) {
-    LOG(ERROR) << load_graph_status;
-  }else{
-    std::cout<<"Done Loading graph"<<std::endl;
-  }
-  
-  std::vector<Tensor> outputs;
-  std::chrono::high_resolution_clock::time_point start_inference;
-  std::chrono::high_resolution_clock::time_point stop_inference ;
-  std::chrono::microseconds time_span;
-  Status run_status;
-
     if(img.empty())
       std::cout<<"No frame";
-
+    
     cv::resize(img, img, cv::Size(128,128));
     cv::imshow("img", img);
-    tensorflow::Tensor resized_tensor(tensorflow::DT_FLOAT, tensorflow::TensorShape({1,input_height,input_width,3}));
     // allocate a Tensor
     // get pointer to memory for that Tensor
     float *p = resized_tensor.flat<float>().data();
